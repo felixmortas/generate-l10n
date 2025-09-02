@@ -28,48 +28,123 @@ export function activate(context: vscode.ExtensionContext) {
   });
 }
 
-// Un exemple de TreeDataProvider simple
-class MyTreeDataProvider implements vscode.TreeDataProvider<string> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<string | undefined>();
+class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<TreeNode | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-  constructor(private context: vscode.ExtensionContext) {}
+  private root: DirectoryNode | null = null;
+
+  constructor(private context: vscode.ExtensionContext) {
+    this.refresh();
+  }
 
   refresh(): void {
+    this.root = this.buildFileTree();
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  getTreeItem(element: string): vscode.TreeItem {
-    return {
-      label: element,
-      collapsibleState: vscode.TreeItemCollapsibleState.None,
-      resourceUri: vscode.Uri.file(element), // Permet d'avoir une icône de fichier
-      contextValue: 'file'
-    };
+  getTreeItem(element: TreeNode): vscode.TreeItem {
+    if (element.isFile) {
+      return {
+        label: element.name,
+        collapsibleState: vscode.TreeItemCollapsibleState.None,
+        resourceUri: vscode.Uri.file(element.path),
+        contextValue: 'file'
+      };
+    } else {
+      return {
+        label: element.name,
+        collapsibleState: element.children.length > 0
+          ? vscode.TreeItemCollapsibleState.Collapsed
+          : vscode.TreeItemCollapsibleState.None,
+        resourceUri: vscode.Uri.file(element.path),
+        contextValue: 'directory'
+      };
+    }
   }
 
-  async getChildren(): Promise<string[]> {
+  getChildren(element?: TreeNode): Thenable<TreeNode[]> {
+    if (!this.root) {
+      return Promise.resolve([]);
+    }
+
+    if (!element) {
+      return Promise.resolve([this.root]); // racine = dossier lib
+    }
+
+    if (element.isFile) {
+      return Promise.resolve([]); // un fichier n’a pas d’enfants
+    }
+
+    return Promise.resolve(element.children);
+  }
+
+  // Fonction pour construire l'arbre
+  private buildFileTree(): DirectoryNode {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      vscode.window.showWarningMessage('Aucun dossier ouvert dans l\'espace de travail.');
-      return [];
+      return new DirectoryNode('Aucun projet ouvert', '', false);
     }
 
-    try {
-      // Rechercher tous les fichiers et dossiers dans lib/ et ses sous-dossiers
-      const files = await vscode.workspace.findFiles(
-        'lib/**/*.dart',           // ← Inclure tout ce qui est dans lib/
-        '{**/node_modules,**/.git}' // Exclure les dossiers indésirables
-      );
+    const rootPath = workspaceFolders[0].uri.fsPath;
+    const libPath = `${rootPath}/lib`;
+    const tree = new DirectoryNode('lib', libPath, false);
 
-      // Retourner les chemins absolus (fsPath)
-      return files.map(file => file.fsPath);
-    } catch (err) {
-      console.error('Erreur lors de la lecture du dossier lib/', err);
-      vscode.window.showErrorMessage('Impossible de lire le dossier lib/.');
-      return [];
-    }
+    const files = vscode.workspace.findFiles(
+      'lib/**/*',
+      '{**/node_modules,**/.git}'
+    );
+
+    files.then(uris => {
+      uris.forEach(uri => {
+        const relativePath = uri.fsPath.substring(libPath.length + 1);
+        if (!relativePath) return; // éviter lib/ lui-même
+
+        const parts = relativePath.split(/[/\\]/);
+        let current: DirectoryNode = tree;
+
+        parts.forEach((part, index) => {
+          if (index === parts.length - 1) {
+            // Fichier
+            current.children.push(new FileNode(part, uri.fsPath, true));
+          } else {
+            // Dossier
+            let dir = current.children.find(
+              c => c.name === part && !c.isFile
+            ) as DirectoryNode | undefined;
+
+            if (!dir) {
+              const fullPath = `${libPath}/${parts.slice(0, index + 1).join('/')}`;
+              dir = new DirectoryNode(part, fullPath, false);
+              current.children.push(dir);
+            }
+            current = dir;
+          }
+        });
+      });
+
+      // Rafraîchir après chargement
+      this._onDidChangeTreeData.fire(undefined);
+    });
+
+    return tree;
   }
 }
+
+// Types pour représenter les nœuds de l'arbre
+class FileNode {
+  constructor(public name: string, public path: string, public isFile: true) {}
+}
+
+class DirectoryNode {
+  constructor(
+    public name: string,
+    public path: string,
+    public isFile: false,
+    public children: Array<FileNode | DirectoryNode> = []
+  ) {}
+}
+
+type TreeNode = FileNode | DirectoryNode;
 
 export function deactivate() {}
