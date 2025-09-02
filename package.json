@@ -14,6 +14,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "myExtension.toggleCheck",
+        "title": "Cocher/Décocher"
+      },
+      {
         "command": "myExtension.processSelectedFiles",
         "title": "Traiter les fichiers sélectionnés",
         "icon": "$(play)"
@@ -32,7 +36,7 @@
       "myExtensionContainer": [
         {
           "id": "myExtensionView",
-          "name": "Mon Panneau"
+          "name": "Mes fichiers"
         }
       ]
     },

@@ -5,27 +5,31 @@ export function activate(context: vscode.ExtensionContext) {
 
   const treeDataProvider = new MyTreeDataProvider(context);
   const view = vscode.window.createTreeView('myExtensionView', {
-    treeDataProvider,
-    canSelectMany: true // IMPORTANT : permet la sélection multiple
+    treeDataProvider
   });
 
-  // Commande pour traiter les fichiers sélectionnés
-  const processSelectedFiles = vscode.commands.registerCommand('myExtension.processSelectedFiles', async () => {
-    const selected = view.selection; // Récupère les éléments sélectionnés
+  // Commande pour cocher/décocher un fichier
+  const toggleCheck = vscode.commands.registerCommand('myExtension.toggleCheck', (node: FileNode) => {
+    treeDataProvider.toggleCheck(node);
+  });
+  context.subscriptions.push(toggleCheck);
 
-    if (selected.length === 0) {
-      vscode.window.showWarningMessage('Aucun fichier sélectionné.');
+
+  // Commande pour traiter les fichiers cochés
+  const processCheckedFiles = vscode.commands.registerCommand('myExtension.processCheckedFiles', async () => {
+    const checked = treeDataProvider.getCheckedFiles();
+
+    if (checked.length === 0) {
+      vscode.window.showWarningMessage('Aucun fichier coché.');
       return;
     }
 
-    // Ici, tu peux traiter les fichiers sélectionnés
     vscode.window.showInformationMessage(
-      `Fichiers sélectionnés : ${selected.join(', ')}`
+      `Fichiers cochés : ${checked.join(', ')}`
     );
-
-    // Exemple : tu peux passer les chemins à une fonction
-    // await processFiles(selected);
   });
+
+  context.subscriptions.push(processCheckedFiles);
 }
 
 class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
@@ -33,6 +37,7 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private root: DirectoryNode | null = null;
+  private checkedFiles = new Set<string>(); // chemins cochés
 
   constructor(private context: vscode.ExtensionContext) {
     this.refresh();
@@ -45,21 +50,29 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
 
   getTreeItem(element: TreeNode): vscode.TreeItem {
     if (element.isFile) {
-      return {
-        label: element.name,
-        collapsibleState: vscode.TreeItemCollapsibleState.None,
-        resourceUri: vscode.Uri.file(element.path),
-        contextValue: 'file'
+      const isChecked = this.checkedFiles.has(element.path);
+      const item = new vscode.TreeItem(
+        `${isChecked ? '☑' : '☐'} ${element.name}`,
+        vscode.TreeItemCollapsibleState.None
+      );
+      item.resourceUri = vscode.Uri.file(element.path);
+      item.contextValue = 'file';
+      item.command = {
+        command: 'myExtension.toggleCheck',
+        title: 'Cocher/Décocher',
+        arguments: [element]
       };
+      return item;
     } else {
-      return {
-        label: element.name,
-        collapsibleState: element.children.length > 0
+      const item = new vscode.TreeItem(
+        element.name,
+        element.children.length > 0
           ? vscode.TreeItemCollapsibleState.Collapsed
-          : vscode.TreeItemCollapsibleState.None,
-        resourceUri: vscode.Uri.file(element.path),
-        contextValue: 'directory'
-      };
+          : vscode.TreeItemCollapsibleState.None
+      );
+      item.resourceUri = vscode.Uri.file(element.path);
+      item.contextValue = 'directory';
+      return item;
     }
   }
 
@@ -73,24 +86,34 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     }
 
     if (element.isFile) {
-      return Promise.resolve([]); // un fichier n’a pas d’enfants
+      return Promise.resolve([]);
     }
 
     return Promise.resolve(element.children);
   }
 
-  // Fonction pour trier les enfants : dossiers d'abord, puis fichiers, chacun trié alphabétiquement
+  // Commande interne pour cocher/décocher
+  toggleCheck(node: FileNode) {
+    if (this.checkedFiles.has(node.path)) {
+      this.checkedFiles.delete(node.path);
+    } else {
+      this.checkedFiles.add(node.path);
+    }
+    this._onDidChangeTreeData.fire(node);
+  }
+
+  getCheckedFiles(): string[] {
+    return Array.from(this.checkedFiles);
+  }
+
   private sortChildren(node: DirectoryNode): void {
     node.children.sort((a, b) => {
-      // Dossiers d'abord, fichiers ensuite
       if (a.isFile !== b.isFile) {
-        return a.isFile ? 1 : -1; // dossier < fichier
+        return a.isFile ? 1 : -1;
       }
-      // Si même type, tri alphabétique (insensible à la casse)
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
 
-    // Tri récursif pour tous les sous-dossiers
     node.children.forEach(child => {
       if (!child.isFile) {
         this.sortChildren(child as DirectoryNode);
@@ -98,7 +121,6 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     });
   }
 
-  // Fonction pour construire l'arbre
   private buildFileTree(): DirectoryNode {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
@@ -117,17 +139,15 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     files.then(uris => {
       uris.forEach(uri => {
         const relativePath = uri.fsPath.substring(libPath.length + 1);
-        if (!relativePath) return; // éviter lib/ lui-même
+        if (!relativePath) return;
 
         const parts = relativePath.split(/[/\\]/);
         let current: DirectoryNode = tree;
 
         parts.forEach((part, index) => {
           if (index === parts.length - 1) {
-            // Fichier
             current.children.push(new FileNode(part, uri.fsPath, true));
           } else {
-            // Dossier
             let dir = current.children.find(
               c => c.name === part && !c.isFile
             ) as DirectoryNode | undefined;
@@ -142,10 +162,7 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
         });
       });
 
-      // 🌟 Tri de l'arbre après construction
       this.sortChildren(tree);
-
-      // Rafraîchir après chargement
       this._onDidChangeTreeData.fire(undefined);
     });
 
@@ -153,7 +170,7 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 }
 
-// Types pour représenter les nœuds de l'arbre
+// Types pour représenter les nœuds
 class FileNode {
   constructor(public name: string, public path: string, public isFile: true) {}
 }
