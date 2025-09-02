@@ -14,10 +14,49 @@
   "contributes": {
     "commands": [
       {
-        "command": "l10n-helper.openUI",
-        "title": "L10n Helper: Ouvrir l'interface"
+        "command": "myExtension.processSelectedFiles",
+        "title": "Traiter les fichiers sélectionnés",
+        "icon": "$(play)"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "myExtensionContainer",
+          "title": "Mon Extension",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "myExtensionContainer": [
+        {
+          "id": "myExtensionView",
+          "name": "Mon Panneau"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "myExtension.processSelectedFiles"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "myExtension.processSelectedFiles",
+          "when": "view == myExtensionView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "myExtension.processSelectedFiles",
+          "when": "view == myExtensionView",
+          "group": "inline"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

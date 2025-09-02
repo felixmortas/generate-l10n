@@ -1,97 +1,75 @@
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext) {
-  let disposable = vscode.commands.registerCommand('l10n-helper.openUI', () => {
-    const panel = vscode.window.createWebviewPanel(
-      'l10nHelper',
-      'L10n Helper',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true
-      }
-    );
+  console.log('Extension activée !');
 
-    panel.webview.html = getWebviewContent();
-
-    // Réception des messages envoyés depuis le webview
-    panel.webview.onDidReceiveMessage(
-      async message => {
-        switch (message.command) {
-          case 'run':
-            vscode.window.showInformationMessage(
-              `Dart: ${message.dartFiles}, ARB: ${message.arbFiles}, API: ${message.apiKey}`
-            );
-
-            // Exemple: lancer une commande Flutter
-            const terminal = vscode.window.createTerminal('Flutter L10n');
-            terminal.sendText("flutter gen-l10n");
-            terminal.show();
-            break;
-        }
-      },
-      undefined,
-      context.subscriptions
-    );
+  const treeDataProvider = new MyTreeDataProvider(context);
+  const view = vscode.window.createTreeView('myExtensionView', {
+    treeDataProvider,
+    canSelectMany: true // IMPORTANT : permet la sélection multiple
   });
 
-  context.subscriptions.push(disposable);
+  // Commande pour traiter les fichiers sélectionnés
+  const processSelectedFiles = vscode.commands.registerCommand('myExtension.processSelectedFiles', async () => {
+    const selected = view.selection; // Récupère les éléments sélectionnés
+
+    if (selected.length === 0) {
+      vscode.window.showWarningMessage('Aucun fichier sélectionné.');
+      return;
+    }
+
+    // Ici, tu peux traiter les fichiers sélectionnés
+    vscode.window.showInformationMessage(
+      `Fichiers sélectionnés : ${selected.join(', ')}`
+    );
+
+    // Exemple : tu peux passer les chemins à une fonction
+    // await processFiles(selected);
+  });
+}
+
+// Un exemple de TreeDataProvider simple
+class MyTreeDataProvider implements vscode.TreeDataProvider<string> {
+  private _onDidChangeTreeData = new vscode.EventEmitter<string | undefined>();
+  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+  constructor(private context: vscode.ExtensionContext) {}
+
+  refresh(): void {
+    this._onDidChangeTreeData.fire(undefined);
+  }
+
+  getTreeItem(element: string): vscode.TreeItem {
+    return {
+      label: element,
+      collapsibleState: vscode.TreeItemCollapsibleState.None,
+      resourceUri: vscode.Uri.file(element), // Permet d'avoir une icône de fichier
+      contextValue: 'file'
+    };
+  }
+
+  async getChildren(): Promise<string[]> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      vscode.window.showWarningMessage('Aucun dossier ouvert dans l\'espace de travail.');
+      return [];
+    }
+
+    try {
+      // Rechercher tous les fichiers et dossiers dans lib/ et ses sous-dossiers
+      const files = await vscode.workspace.findFiles(
+        'lib/**/*.dart',           // ← Inclure tout ce qui est dans lib/
+        '{**/node_modules,**/.git}' // Exclure les dossiers indésirables
+      );
+
+      // Retourner les chemins absolus (fsPath)
+      return files.map(file => file.fsPath);
+    } catch (err) {
+      console.error('Erreur lors de la lecture du dossier lib/', err);
+      vscode.window.showErrorMessage('Impossible de lire le dossier lib/.');
+      return [];
+    }
+  }
 }
 
 export function deactivate() {}
-
-function getWebviewContent() {
-  return /* html */`
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: sans-serif; padding: 1rem; }
-        h2 { margin-bottom: 1rem; }
-        .field { margin-bottom: 1rem; }
-        label { display:block; font-weight: bold; margin-bottom: 0.3rem; }
-        input, select, button { width: 100%; padding: 0.5rem; border-radius: 6px; }
-        button { background: #007acc; color: white; border: none; cursor: pointer; }
-        button:hover { background: #005fa3; }
-      </style>
-    </head>
-    <body>
-      <h2>⚙️ L10n Helper</h2>
-
-      <div class="field">
-        <label for="dart">Fichiers .dart</label>
-        <input type="file" id="dart" multiple accept=".dart" />
-      </div>
-
-      <div class="field">
-        <label for="arb">Fichiers .arb</label>
-        <input type="file" id="arb" multiple accept=".arb" />
-      </div>
-
-      <div class="field">
-        <label for="apiKey">Clé API</label>
-        <input type="text" id="apiKey" placeholder="Entrez la clé API" />
-      </div>
-
-      <button id="run">🚀 Lancer</button>
-
-      <script>
-        const vscode = acquireVsCodeApi();
-
-        document.getElementById('run').addEventListener('click', () => {
-          const dartFiles = Array.from(document.getElementById('dart').files).map(f => f.name);
-          const arbFiles = Array.from(document.getElementById('arb').files).map(f => f.name);
-          const apiKey = document.getElementById('apiKey').value;
-
-          vscode.postMessage({
-            command: 'run',
-            dartFiles,
-            arbFiles,
-            apiKey
-          });
-        });
-      </script>
-    </body>
-    </html>
-  `;
-}
