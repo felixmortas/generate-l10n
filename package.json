@@ -14,8 +14,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "generate-l10n.helloWorld",
-        "title": "Hello World"
+        "command": "l10n-helper.openUI",
+        "title": "L10n Helper: Ouvrir l'interface"
       }
     ]
   },

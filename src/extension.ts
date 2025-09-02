@@ -1,26 +1,97 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+  let disposable = vscode.commands.registerCommand('l10n-helper.openUI', () => {
+    const panel = vscode.window.createWebviewPanel(
+      'l10nHelper',
+      'L10n Helper',
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true
+      }
+    );
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "generate-l10n" is now active!');
+    panel.webview.html = getWebviewContent();
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('generate-l10n.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from generate_l10n!');
-	});
+    // Réception des messages envoyés depuis le webview
+    panel.webview.onDidReceiveMessage(
+      async message => {
+        switch (message.command) {
+          case 'run':
+            vscode.window.showInformationMessage(
+              `Dart: ${message.dartFiles}, ARB: ${message.arbFiles}, API: ${message.apiKey}`
+            );
 
-	context.subscriptions.push(disposable);
+            // Exemple: lancer une commande Flutter
+            const terminal = vscode.window.createTerminal('Flutter L10n');
+            terminal.sendText("flutter gen-l10n");
+            terminal.show();
+            break;
+        }
+      },
+      undefined,
+      context.subscriptions
+    );
+  });
+
+  context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
+
+function getWebviewContent() {
+  return /* html */`
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: sans-serif; padding: 1rem; }
+        h2 { margin-bottom: 1rem; }
+        .field { margin-bottom: 1rem; }
+        label { display:block; font-weight: bold; margin-bottom: 0.3rem; }
+        input, select, button { width: 100%; padding: 0.5rem; border-radius: 6px; }
+        button { background: #007acc; color: white; border: none; cursor: pointer; }
+        button:hover { background: #005fa3; }
+      </style>
+    </head>
+    <body>
+      <h2>⚙️ L10n Helper</h2>
+
+      <div class="field">
+        <label for="dart">Fichiers .dart</label>
+        <input type="file" id="dart" multiple accept=".dart" />
+      </div>
+
+      <div class="field">
+        <label for="arb">Fichiers .arb</label>
+        <input type="file" id="arb" multiple accept=".arb" />
+      </div>
+
+      <div class="field">
+        <label for="apiKey">Clé API</label>
+        <input type="text" id="apiKey" placeholder="Entrez la clé API" />
+      </div>
+
+      <button id="run">🚀 Lancer</button>
+
+      <script>
+        const vscode = acquireVsCodeApi();
+
+        document.getElementById('run').addEventListener('click', () => {
+          const dartFiles = Array.from(document.getElementById('dart').files).map(f => f.name);
+          const arbFiles = Array.from(document.getElementById('arb').files).map(f => f.name);
+          const apiKey = document.getElementById('apiKey').value;
+
+          vscode.postMessage({
+            command: 'run',
+            dartFiles,
+            arbFiles,
+            apiKey
+          });
+        });
+      </script>
+    </body>
+    </html>
+  `;
+}
