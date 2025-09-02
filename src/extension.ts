@@ -79,6 +79,25 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     return Promise.resolve(element.children);
   }
 
+  // Fonction pour trier les enfants : dossiers d'abord, puis fichiers, chacun trié alphabétiquement
+  private sortChildren(node: DirectoryNode): void {
+    node.children.sort((a, b) => {
+      // Dossiers d'abord, fichiers ensuite
+      if (a.isFile !== b.isFile) {
+        return a.isFile ? 1 : -1; // dossier < fichier
+      }
+      // Si même type, tri alphabétique (insensible à la casse)
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+    // Tri récursif pour tous les sous-dossiers
+    node.children.forEach(child => {
+      if (!child.isFile) {
+        this.sortChildren(child as DirectoryNode);
+      }
+    });
+  }
+
   // Fonction pour construire l'arbre
   private buildFileTree(): DirectoryNode {
     const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -91,8 +110,8 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     const tree = new DirectoryNode('lib', libPath, false);
 
     const files = vscode.workspace.findFiles(
-      'lib/**/*',
-      '{**/node_modules,**/.git}'
+      'lib/**/*.dart',
+      '{**/node_modules,**/.git,**/l10n/**}'
     );
 
     files.then(uris => {
@@ -122,6 +141,9 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
           }
         });
       });
+
+      // 🌟 Tri de l'arbre après construction
+      this.sortChildren(tree);
 
       // Rafraîchir après chargement
       this._onDidChangeTreeData.fire(undefined);
