@@ -64,12 +64,13 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
       };
       return item;
     } else {
-      const item = new vscode.TreeItem(
-        element.name,
-        element.children.length > 0
-          ? vscode.TreeItemCollapsibleState.Collapsed
-          : vscode.TreeItemCollapsibleState.None
-      );
+      const collapsibleState = element.name === "lib"
+        ? vscode.TreeItemCollapsibleState.Expanded
+        : (element.children.length > 0
+            ? vscode.TreeItemCollapsibleState.Collapsed
+            : vscode.TreeItemCollapsibleState.None);
+
+      const item = new vscode.TreeItem(element.name, collapsibleState);
       item.resourceUri = vscode.Uri.file(element.path);
       item.contextValue = 'directory';
       return item;
