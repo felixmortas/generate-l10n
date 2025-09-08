@@ -14,11 +14,11 @@
   "contributes": {
     "commands": [
       {
-        "command": "myExtension.toggleCheck",
+        "command": "generateL10n.toggleCheck",
         "title": "Cocher/Décocher"
       },
       {
-        "command": "myExtension.processSelectedFiles",
+        "command": "generateL10n.processSelectedFiles",
         "title": "Traiter les fichiers sélectionnés",
         "icon": "$(play)"
       }
@@ -26,16 +26,16 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "myExtensionContainer",
+          "id": "generateL10nContainer",
           "title": "Mon Extension",
           "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "myExtensionContainer": [
+      "generateL10nContainer": [
         {
-          "id": "myExtensionView",
+          "id": "generateL10nView",
           "name": "Mes fichiers"
         }
       ]
@@ -43,13 +43,13 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "myExtension.processSelectedFiles"
+          "command": "generateL10n.processSelectedFiles"
         }
       ],
       "view/title": [
         {
-          "command": "myExtension.processSelectedFiles",
-          "when": "view == myExtensionView",
+          "command": "generateL10n.processSelectedFiles",
+          "when": "view == generateL10nView",
           "group": "navigation"
         }
       ]

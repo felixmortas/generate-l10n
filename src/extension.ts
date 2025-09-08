@@ -4,19 +4,19 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('Extension activée !');
 
   const treeDataProvider = new MyTreeDataProvider(context);
-  const view = vscode.window.createTreeView('myExtensionView', {
+  const view = vscode.window.createTreeView('generateL10nView', {
     treeDataProvider
   });
 
   // Commande pour cocher/décocher un fichier
-  const toggleCheck = vscode.commands.registerCommand('myExtension.toggleCheck', (node: FileNode) => {
+  const toggleCheck = vscode.commands.registerCommand('generateL10n.toggleCheck', (node: FileNode) => {
     treeDataProvider.toggleCheck(node);
   });
   context.subscriptions.push(toggleCheck);
 
 
   // Commande pour traiter les fichiers cochés
-  const processCheckedFiles = vscode.commands.registerCommand('myExtension.processCheckedFiles', async () => {
+  const processSelectedFiles = vscode.commands.registerCommand('generateL10n.processSelectedFiles', async () => {
     const checked = treeDataProvider.getCheckedFiles();
 
     if (checked.length === 0) {
@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
   });
 
-  context.subscriptions.push(processCheckedFiles);
+  context.subscriptions.push(processSelectedFiles);
 }
 
 class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
@@ -58,7 +58,7 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
       item.resourceUri = vscode.Uri.file(element.path);
       item.contextValue = 'file';
       item.command = {
-        command: 'myExtension.toggleCheck',
+        command: 'generateL10n.toggleCheck',
         title: 'Cocher/Décocher',
         arguments: [element]
       };
