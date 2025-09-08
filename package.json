@@ -52,13 +52,6 @@
           "when": "view == myExtensionView",
           "group": "navigation"
         }
-      ],
-      "view/item/context": [
-        {
-          "command": "myExtension.processSelectedFiles",
-          "when": "view == myExtensionView",
-          "group": "inline"
-        }
       ]
     }
   },
