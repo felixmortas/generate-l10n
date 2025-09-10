@@ -35,10 +35,18 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    // init arbsFolder variable to the first workspace folder + /lib/l10n
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      vscode.window.showErrorMessage("Aucun dossier ouvert dans l'espace de travail.");
+      return;
+    }
+    const arbsFolder = `${workspaceFolders[0].uri.fsPath}/lib/l10n`;
+
     const modifier = new L10nProcessor({
       provider: "mistral", // ou récupéré via settings
       model: "mistral-small-latest",
-      arbsFolder: "./lib/l10n",
+      arbsFolder: arbsFolder,
       files: checked,
       apiKey, // <-- on injecte la clé
     });
@@ -49,19 +57,15 @@ export function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(processSelectedFiles);
 
-  const setApiKey = vscode.commands.registerCommand("generateL10n.setApiKey", async () => {
-    const key = await vscode.window.showInputBox({
-      prompt: "Entrez votre clé API",
-      ignoreFocusOut: true,
-      password: true, // masque la saisie
-    });
-
-    if (key) {
-      await context.secrets.store("apiKey", key);
-      vscode.window.showInformationMessage("Clé API enregistrée avec succès ✅");
-    }
+  const configureExtension = vscode.commands.registerCommand("generateL10n.configureExtension", async () => {
+    // Ouvre la page des paramètres de l'extension
+    await vscode.commands.executeCommand(
+      "workbench.action.openSettings",
+      "generateL10n"
+    );
   });
-  context.subscriptions.push(setApiKey);
+  context.subscriptions.push(configureExtension);
+
 }
 
 class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {

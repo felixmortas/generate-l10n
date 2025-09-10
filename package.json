@@ -13,6 +13,27 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Generate L10n Settings",
+      "properties": {
+        "generateL10n.provider": {
+          "type": "string",
+          "default": "mistral",
+          "description": "Fournisseur LLM à utiliser (openai, mistral, google)"
+        },
+        "generateL10n.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key du provider"
+        },
+        "generateL10n.model": {
+          "type": "string",
+          "default": "mistral-small-latest",
+          "description": "Nom du modèle LLM à utiliser"
+        }
+      }
+    },
     "commands": [
       {
         "command": "generateL10n.toggleCheck",
@@ -24,8 +45,8 @@
         "icon": "$(play)"
       },
       {
-        "command": "generateL10n.setApiKey",
-        "title": "Définir la clé API"
+        "command": "generateL10n.configureExtension",
+        "title": "Configurer L10n"
       }
     ],
     "viewsContainers": {
@@ -52,6 +73,12 @@
         }
       ],
       "view/title": [
+        {
+          "command": "generateL10n.configureExtension",
+          "when": "view == generateL10nView",
+          "group": "navigation",
+          "icon": "gear"
+        },
         {
           "command": "generateL10n.processSelectedFiles",
           "when": "view == generateL10nView",
