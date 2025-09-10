@@ -3,6 +3,7 @@
   "displayName": "generate_l10n",
   "description": "",
   "version": "0.0.1",
+  "type": "module",
   "engines": {
     "vscode": "^1.103.0"
   },
@@ -21,6 +22,10 @@
         "command": "generateL10n.processSelectedFiles",
         "title": "Traiter les fichiers sélectionnés",
         "icon": "$(play)"
+      },
+      {
+        "command": "generateL10n.setApiKey",
+        "title": "Définir la clé API"
       }
     ],
     "viewsContainers": {
@@ -64,14 +69,17 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.103.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/vscode": "^1.103.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
-    "eslint": "^9.32.0",
-    "typescript": "^5.9.2",
     "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.32.0",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "auto-l10n-ts": "^0.3.0"
   }
 }

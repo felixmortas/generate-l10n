@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { L10nProcessor } from "auto-l10n-ts"; 
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Extension activée !');
@@ -27,9 +28,40 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage(
       `Fichiers cochés : ${checked.join(', ')}`
     );
-  });
 
+    const apiKey = await context.secrets.get("apiKey");
+    if (!apiKey) {
+      vscode.window.showErrorMessage("Clé API manquante. Veuillez la définir avec la commande 'Définir la clé API'.");
+      return;
+    }
+
+    const modifier = new L10nProcessor({
+      provider: "mistral", // ou récupéré via settings
+      model: "mistral-small-latest",
+      arbsFolder: "./lib/l10n",
+      files: checked,
+      apiKey, // <-- on injecte la clé
+    });
+
+    await modifier.process();
+    vscode.window.showInformationMessage("Traitement terminé 🎉");
+
+  });
   context.subscriptions.push(processSelectedFiles);
+
+  const setApiKey = vscode.commands.registerCommand("generateL10n.setApiKey", async () => {
+    const key = await vscode.window.showInputBox({
+      prompt: "Entrez votre clé API",
+      ignoreFocusOut: true,
+      password: true, // masque la saisie
+    });
+
+    if (key) {
+      await context.secrets.store("apiKey", key);
+      vscode.window.showInformationMessage("Clé API enregistrée avec succès ✅");
+    }
+  });
+  context.subscriptions.push(setApiKey);
 }
 
 class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
