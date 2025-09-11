@@ -5,6 +5,7 @@
 ![Extension Icon](resources/logo.png)
 
 ![Extension Demo](resources/demo.gif)
+[Download video for better quality](resources/demo.mp4)
 
 ---
 
