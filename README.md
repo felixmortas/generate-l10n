@@ -2,7 +2,7 @@
 
 **Automate localization of Dart/Flutter projects using AI/LLMs directly from VSCode.**
 
-![Extension Icon](resources/icon.svg)
+![Extension Icon](resources/icon.png)
 
 ---
 
