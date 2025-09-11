@@ -4,6 +4,8 @@
 
 ![Extension Icon](resources/logo.png)
 
+![Extension Demo](resources/demo.mp4)
+
 ---
 
 ## Table of Contents
