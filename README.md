@@ -1,71 +1,144 @@
-# generate-l10n README
+# Generate L10n - VSCode Extension
 
-This is the README for your extension "generate-l10n". After writing up a brief description, we recommend including the following sections.
+**Automate localization of Dart/Flutter projects using AI/LLMs directly from VSCode.**
 
-## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+![Extension Icon](resources/icon.svg)
 
 ---
 
-## Following extension guidelines
+## Table of Contents
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+* [Overview](#overview)
+* [Features](#features)
+* [Installation](#installation)
+* [Usage](#usage)
+* [Configuration](#configuration)
+* [Commands](#commands)
+* [Tree View](#tree-view)
+* [Technical Details](#technical-details)
+* [Troubleshooting](#troubleshooting)
+* [Contributing](#contributing)
+* [License](#license)
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+---
 
-## Working with Markdown
+## Overview
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+`generate-l10n` is a VSCode extension designed to simplify and automate the localization process for **Dart/Flutter projects**.
+It leverages **LLM models** (like Mistral, OpenAI, Google) to update `.dart` files and amend `.arb` localization files.
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+The extension provides an interactive **tree view**, file selection, and direct integration with the `flutter gen-l10n` command.
 
-## For more information
+---
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+## Features
 
-**Enjoy!**
+* Interactive **tree view** of Dart files under `/lib`.
+* Check/uncheck files to include in the localization process.
+* Select **ARB localization files** for multiple languages.
+* Input **API key** for LLM provider.
+* Supports multiple **LLM providers** and models.
+* Automatically executes `flutter gen-l10n` after processing.
+* Full **VSCode native UI integration** (activity bar, command palette, tree view).
+
+---
+
+## Installation
+
+1. Open **VSCode**.
+2. Navigate to the **Extensions** sidebar.
+3. Search for `generate-l10n`.
+4. Click **Install**.
+5. Once installed, the **L10n Generator** icon appears in the activity bar.
+
+> No additional setup is required beyond the API key.
+
+---
+
+## Usage
+
+1. Open a Flutter/Dart project in VSCode.
+2. Click the **L10n Generator** icon in the activity bar.
+3. Expand the `/lib` folder tree to locate Dart files.
+4. Check the files you want to process.
+5. Press the **Play ▶** button or run the command `Process Selected Files` from the command palette.
+6. The extension will:
+
+   * Use the configured LLM to modify Dart/ARB files.
+   * Execute `flutter gen-l10n` in a terminal.
+   * Notify you upon success or failure.
+
+---
+
+## Configuration
+
+Configure the extension via **Settings** or the `configureExtension` command:
+
+| Setting                 | Type   | Default                  | Description                                         |
+| ----------------------- | ------ | ------------------------ | --------------------------------------------------- |
+| `generateL10n.provider` | string | `"mistral"`              | LLM provider to use (`openai`, `mistral`, `google`) |
+| `generateL10n.apiKey`   | string | `""`                     | API key for the selected provider                   |
+| `generateL10n.model`    | string | `"mistral-small-latest"` | LLM model used for processing                       |
+
+> The API key is required for the extension to function.
+
+---
+
+## Commands
+
+The extension registers the following commands:
+
+| Command                             | Description                                                       |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `generateL10n.toggleCheck`          | Toggle check state of a file in the tree view.                    |
+| `generateL10n.processSelectedFiles` | Process all checked files using the configured AI provider/model. |
+| `generateL10n.configureExtension`   | Open extension settings for configuration.                        |
+| `generateL10n.refreshView`          | Refresh the tree view to reflect changes in the file system.      |
+
+> All commands are accessible via the **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`).
+
+---
+
+## Tree View
+
+* Displays the `/lib` folder hierarchy.
+* Directories appear collapsible; Dart files are checkable.
+* Checked files are included in LLM processing.
+* Automatically refreshes when files are added or removed.
+* Excludes: `node_modules`, `.git`, `/lib/l10n`.
+
+---
+
+## Technical Details
+
+* Written in **TypeScript** for VSCode extension API.
+* Uses the `auto-l10n-ts` library for Dart/ARB file processing.
+* Interacts with **LLMs** via provider APIs.
+* Launches **Flutter commands** in a VSCode terminal.
+* Fully modular: tree view, commands, and file processing separated for maintainability.
+
+---
+
+## Troubleshooting
+
+* **No workspace open**: Open a Flutter project folder in VSCode.
+* **Missing API key**: Set it via Settings (`generateL10n.apiKey`) or `Configure Extension` command.
+* **No files checked**: Ensure you select at least one Dart file.
+* **Flutter gen-l10n fails**: Verify Flutter SDK is installed and added to PATH.
+
+---
+
+## Contributing
+
+Contributions are welcome!
+
+* Fork the repository.
+* Implement changes in `src/`.
+* Test using `npm run test`.
+* Submit a Pull Request with detailed description.
+
+---
+
+## License
+
+MIT License © 2025
