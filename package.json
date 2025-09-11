@@ -2,7 +2,7 @@
   "name": "generate-l10n",
   "displayName": "generate_l10n",
   "description": "VSCode extension to automate localization of Dart/Flutter projects using LLMs.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/felixmortas/generate-l10n.git"
@@ -12,6 +12,8 @@
   "engines": {
     "vscode": "^1.103.0"
   },
+  "icon": "resources/icon.png",
+  "license": "MIT",
   "categories": [
     "Other"
   ],
