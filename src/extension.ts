@@ -1,89 +1,133 @@
 import * as vscode from 'vscode';
 import { L10nProcessor } from "auto-l10n-ts"; 
 
+/**
+ * Activates the extension when VSCode loads it.
+ * Registers commands for toggling files, processing selected files, and opening the extension settings.
+ * @param context - VSCode extension context.
+ */
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Extension activée !');
+  console.log('Extension activated!');
 
   const treeDataProvider = new MyTreeDataProvider(context);
+
+  // Create a tree view in the side panel for localization files
   const view = vscode.window.createTreeView('generateL10nView', {
     treeDataProvider
   });
 
-  // Commande pour cocher/décocher un fichier
+  /**
+   * Command: toggleCheck
+   * Toggles the check state of a file in the tree view.
+   */
   const toggleCheck = vscode.commands.registerCommand('generateL10n.toggleCheck', (node: FileNode) => {
     treeDataProvider.toggleCheck(node);
   });
   context.subscriptions.push(toggleCheck);
 
-
-  // Commande pour traiter les fichiers cochés
+  /**
+   * Command: processSelectedFiles
+   * Processes all checked localization files using L10nProcessor and the configured AI provider/model.
+   */
   const processSelectedFiles = vscode.commands.registerCommand('generateL10n.processSelectedFiles', async () => {
     const checked = treeDataProvider.getCheckedFiles();
 
     if (checked.length === 0) {
-      vscode.window.showWarningMessage('Aucun fichier coché.');
+      vscode.window.showWarningMessage('No files are checked.');
       return;
     }
 
     vscode.window.showInformationMessage(
-      `Fichiers cochés : ${checked.join(', ')}`
+      `Checked files: ${checked.join(', ')}`
     );
 
-    const apiKey = await context.secrets.get("apiKey");
+    // Get configuration from extension settings
+    const config = vscode.workspace.getConfiguration('generateL10n');
+    const apiKey = config.get<string>('apiKey') ?? '';
+    const provider = config.get<string>('provider') ?? 'mistral';
+    const model = config.get<string>('model') ?? 'mistral-small-latest';
+
     if (!apiKey) {
-      vscode.window.showErrorMessage("Clé API manquante. Veuillez la définir avec la commande 'Définir la clé API'.");
+      vscode.window.showErrorMessage(
+        "Missing API key. Please set it in the extension settings."
+      );
       return;
     }
-
-    // init arbsFolder variable to the first workspace folder + /lib/l10n
+    
+    // Determine the ARB folder path based on the first workspace folder
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
-      vscode.window.showErrorMessage("Aucun dossier ouvert dans l'espace de travail.");
+      vscode.window.showErrorMessage("No workspace folder is open.");
       return;
     }
     const arbsFolder = `${workspaceFolders[0].uri.fsPath}/lib/l10n`;
 
     const modifier = new L10nProcessor({
-      provider: "mistral", // ou récupéré via settings
-      model: "mistral-small-latest",
-      arbsFolder: arbsFolder,
+      provider,
+      model,
+      arbsFolder,
       files: checked,
-      apiKey, // <-- on injecte la clé
+      apiKey,
     });
 
-    await modifier.process();
-    vscode.window.showInformationMessage("Traitement terminé 🎉");
-
+    try {
+      await modifier.process();
+      const terminal = vscode.window.createTerminal('Flutter L10n');
+      terminal.show();
+      terminal.sendText('flutter gen-l10n');
+      treeDataProvider.refresh();
+      vscode.window.showInformationMessage("Processing completed successfully 🎉");
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Error: ${err.message}`);
+      console.error(err);
+    }
   });
   context.subscriptions.push(processSelectedFiles);
 
+  /**
+   * Command: refreshView
+   * Refreshes the tree view to reflect any changes in the file system.
+   */
+  const refreshView = vscode.commands.registerCommand('generateL10n.refreshView', () => {
+    treeDataProvider.refresh();
+  });
+  context.subscriptions.push(refreshView);
+
+  /**
+   * Command: configureExtension
+   * Opens the extension's settings page for the user to configure API key, provider, and model.
+   */
   const configureExtension = vscode.commands.registerCommand("generateL10n.configureExtension", async () => {
-    // Ouvre la page des paramètres de l'extension
     await vscode.commands.executeCommand(
       "workbench.action.openSettings",
       "generateL10n"
     );
   });
   context.subscriptions.push(configureExtension);
-
 }
 
+/**
+ * Tree data provider for the localization files.
+ * Displays a tree view of the /lib folder with Dart files and allows checking/unchecking files.
+ */
 class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
   private _onDidChangeTreeData = new vscode.EventEmitter<TreeNode | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private root: DirectoryNode | null = null;
-  private checkedFiles = new Set<string>(); // chemins cochés
+  private checkedFiles = new Set<string>(); // Set of checked file paths
 
   constructor(private context: vscode.ExtensionContext) {
     this.refresh();
   }
 
+  /** Refreshes the tree view by rebuilding the file tree */
   refresh(): void {
     this.root = this.buildFileTree();
     this._onDidChangeTreeData.fire(undefined);
   }
 
+  /** Converts a tree node into a VSCode TreeItem */
   getTreeItem(element: TreeNode): vscode.TreeItem {
     if (element.isFile) {
       const isChecked = this.checkedFiles.has(element.path);
@@ -95,7 +139,7 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
       item.contextValue = 'file';
       item.command = {
         command: 'generateL10n.toggleCheck',
-        title: 'Cocher/Décocher',
+        title: 'Toggle Check',
         arguments: [element]
       };
       return item;
@@ -113,13 +157,14 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     }
   }
 
+  /** Returns the children of a given tree node */
   getChildren(element?: TreeNode): Thenable<TreeNode[]> {
     if (!this.root) {
       return Promise.resolve([]);
     }
 
     if (!element) {
-      return Promise.resolve([this.root]); // racine = dossier lib
+      return Promise.resolve([this.root]); // root folder
     }
 
     if (element.isFile) {
@@ -129,7 +174,7 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     return Promise.resolve(element.children);
   }
 
-  // Commande interne pour cocher/décocher
+  /** Toggles the checked state of a file */
   toggleCheck(node: FileNode) {
     if (this.checkedFiles.has(node.path)) {
       this.checkedFiles.delete(node.path);
@@ -139,10 +184,12 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     this._onDidChangeTreeData.fire(node);
   }
 
+  /** Returns a list of all checked file paths */
   getCheckedFiles(): string[] {
     return Array.from(this.checkedFiles);
   }
 
+  /** Sorts children nodes: directories first, then files alphabetically */
   private sortChildren(node: DirectoryNode): void {
     node.children.sort((a, b) => {
       if (a.isFile !== b.isFile) {
@@ -158,10 +205,11 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     });
   }
 
+  /** Builds the tree of files under /lib, excluding node_modules, .git, and l10n folders */
   private buildFileTree(): DirectoryNode {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      return new DirectoryNode('Aucun projet ouvert', '', false);
+      return new DirectoryNode('No project open', '', false);
     }
 
     const rootPath = workspaceFolders[0].uri.fsPath;
@@ -207,11 +255,13 @@ class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 }
 
-// Types pour représenter les nœuds
+// --- Tree node types ---
+/** Represents a file in the tree */
 class FileNode {
   constructor(public name: string, public path: string, public isFile: true) {}
 }
 
+/** Represents a directory in the tree */
 class DirectoryNode {
   constructor(
     public name: string,
@@ -223,4 +273,5 @@ class DirectoryNode {
 
 type TreeNode = FileNode | DirectoryNode;
 
+/** Called when the extension is deactivated */
 export function deactivate() {}

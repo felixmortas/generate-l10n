@@ -1,8 +1,8 @@
 {
   "name": "generate-l10n",
   "displayName": "generate_l10n",
-  "description": "",
-  "version": "0.0.1",
+  "description": "VSCode extension to automate localization of Dart/Flutter projects using LLMs.",
+  "version": "1.0.0",
   "type": "module",
   "engines": {
     "vscode": "^1.103.0"
@@ -20,40 +20,47 @@
         "generateL10n.provider": {
           "type": "string",
           "default": "mistral",
-          "description": "Fournisseur LLM à utiliser (openai, mistral, google)"
+          "description": "LLM provider to use.",
+          "enum": ["openai", "mistral", "google"]
         },
         "generateL10n.apiKey": {
           "type": "string",
           "default": "",
-          "description": "API key du provider"
+          "description": "API key for the selected provider."
         },
         "generateL10n.model": {
           "type": "string",
           "default": "mistral-small-latest",
-          "description": "Nom du modèle LLM à utiliser"
+          "description": "LLM model name to use for processing."
         }
       }
     },
     "commands": [
       {
         "command": "generateL10n.toggleCheck",
-        "title": "Cocher/Décocher"
+        "title": "Toggle Check"
       },
       {
         "command": "generateL10n.processSelectedFiles",
-        "title": "Traiter les fichiers sélectionnés",
+        "title": "Process Selected Files",
         "icon": "$(play)"
       },
       {
         "command": "generateL10n.configureExtension",
-        "title": "Configurer L10n"
+        "title": "Configure Extension",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "generateL10n.refreshView",
+        "title": "Refresh View",
+        "icon": "$(refresh)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "generateL10nContainer",
-          "title": "Mon Extension",
+          "title": "L10n Generator",
           "icon": "resources/icon.svg"
         }
       ]
@@ -62,7 +69,7 @@
       "generateL10nContainer": [
         {
           "id": "generateL10nView",
-          "name": "Mes fichiers"
+          "name": "Files"
         }
       ]
     },
@@ -73,6 +80,12 @@
         }
       ],
       "view/title": [
+        {
+          "command": "generateL10n.refreshView",
+          "when": "view == generateL10nView",
+          "group": "navigation",
+          "icon": "refresh"
+        },
         {
           "command": "generateL10n.configureExtension",
           "when": "view == generateL10nView",
@@ -107,6 +120,6 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "auto-l10n-ts": "^0.3.0"
+    "auto-l10n-ts": "^0.3.2"
   }
 }
