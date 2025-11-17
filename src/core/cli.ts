@@ -8,6 +8,7 @@ program
   .requiredOption("--model <model>", "Model name to use")
   .requiredOption("--arbs-folder <path>", "Directory of .arb localization files")
   .requiredOption("--files <files...>", "Flutter files to process")
+  .requiredOption("--package-name <name>", "Flutter project package name")
   .option("--api-key <key>", "API key for the LLM provider");
 
 program.parse(process.argv);
@@ -32,6 +33,7 @@ async function main() {
     arbsFolder: opts.arbsFolder,
     files: opts.files,
     apiKey: opts.apiKey ?? process.env[`${opts.provider.toUpperCase()}_API_KEY`] ?? "",
+    packageName: opts.packageName ?? "",
   });
 
   await processor.process();

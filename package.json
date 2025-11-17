@@ -48,6 +48,11 @@
           "type": "boolean",
           "default": false,
           "description": "Create backup files before modifying ARB and Flutter files."
+        },
+        "generateL10n.packageName": {
+          "type": "string",
+          "default": "",
+          "description": "Flutter project package name (auto-detected from pubspec.yaml if empty)."
         }
       }
     },
@@ -146,6 +151,7 @@
     "@langchain/mistralai": "^0.2.1",
     "@langchain/openai": "^0.6.11",
     "commander": "^10.0.0",
-    "dotenv": "^16.0.0"
+    "dotenv": "^16.0.0",
+    "yaml": "^2.8.1"
   }
 }

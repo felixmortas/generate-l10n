@@ -12,7 +12,7 @@ Le processus pour modifier le fichier est le suivant :
 1) Pour chaque texte statique dans un widget, remplacer le texte brute par AppLocalizations.of(context)!.key.
 2) Regénère le fichier flutter. Attention à ne pas remplacer les textes des dictionnaires ou autres objets n'étant pas affichés dans l'interface utilisateur. 
 Attention à également bien ajouter le ! à AppLocalizations.of(context) et supprimer const devant. 
-Veille à ce qu'il y ait toujours une ligne qui importe 'package:userpackagename/l10n/app_localizations.dart'; tu dois pouvoir retrouver userpackagename dans les import dans le fichier dart. 
+Vérifie que import 'package:{package_name}/l10n/app_localizations.dart'; est bien seulement une fois dans le fichier. S'il existe deux fois, supprime celui qui apparaît tout en haut du fichier.
 
 N'écrit rien d'autre que le format de réponse attendu.
 Voici le format de réponse attendu :
@@ -24,7 +24,7 @@ REPONSE FINALE :
 
 
 <dart>
-import 'package:UserPackageName/lib/l10n/app_localizations.dart';
+import ...
 class ...
 ...
 @override

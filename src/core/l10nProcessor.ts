@@ -20,6 +20,7 @@ export interface L10nProcessorOptions {
   arbsFolder: string;
   files: string[];
   apiKey: string;
+  packageName: string;
   backup?: boolean;
 }
 
@@ -42,6 +43,7 @@ export class L10nProcessor {
   public async process(): Promise<void> {
     const { arbsFolder, files } = this.opts;
     const backup = this.opts.backup ?? false;
+    const packageName = this.opts.packageName;
 
     // Validate ARB folder existence
     const resolvedArbsFolder = path.resolve(arbsFolder);
@@ -108,7 +110,8 @@ export class L10nProcessor {
       const finalResponse = await this.llm.process(
         flutterContent,
         arbContent,
-        langTag
+        langTag,
+        packageName,
       );
 
       // Cleanup model output (strip tags)

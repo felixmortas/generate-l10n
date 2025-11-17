@@ -1,5 +1,36 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as yaml from 'yaml';
 import { L10nProcessor } from "./core/l10nProcessor.js";
+
+/**
+ * Reads the Flutter project name from pubspec.yaml
+ * @returns The project name or null if not found
+ */
+function getFlutterProjectName(): string | null {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    return null;
+  }
+
+  // Search for pubspec.yaml in the workspace root
+  const pubspecPath = path.join(workspaceFolders[0].uri.fsPath, 'pubspec.yaml');
+
+  if (!fs.existsSync(pubspecPath)) {
+    return null;
+  }
+
+  try {
+    const content = fs.readFileSync(pubspecPath, 'utf8');
+    const parsed = yaml.parse(content);
+    return parsed.name || null;
+  } catch (error) {
+    console.error('Error reading pubspec.yaml:', error);
+    return null;
+  }
+}
 
  /**
  * Activates the extension when VSCode loads it.
@@ -8,6 +39,25 @@ import { L10nProcessor } from "./core/l10nProcessor.js";
  */
 export function activate(context: vscode.ExtensionContext) {
   console.log('Extension activated!');
+
+  // Initialize packageName from pubspec.yaml if not set
+  const config = vscode.workspace.getConfiguration('generateL10n');
+  const packageName = config.get<string>('packageName');
+
+  if (!packageName || packageName === '') {
+    const flutterProjectName = getFlutterProjectName();
+    
+    if (flutterProjectName) {
+      config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
+      vscode.window.showInformationMessage(
+        `Flutter project detected: ${flutterProjectName}`
+      );
+    } else {
+      vscode.window.showWarningMessage(
+        'No pubspec.yaml found. Please set the package name manually in settings.'
+      );
+    }
+  }
 
   const treeDataProvider = new MyTreeDataProvider(context);
 
@@ -47,12 +97,29 @@ export function activate(context: vscode.ExtensionContext) {
     const provider = config.get<string>('provider') ?? 'mistral';
     const model = config.get<string>('model') ?? 'mistral-small-latest';
     const backup = config.get<boolean>('backup') ?? false;
+    const packageName = config.get<string>('packageName') ?? '';
 
     if (!apiKey) {
       vscode.window.showErrorMessage(
         "Missing API key. Please set it in the extension settings."
       );
       return;
+    }
+
+    // Initialize packageName from pubspec.yaml if not set
+    if (!packageName || packageName === '') {
+      const flutterProjectName = getFlutterProjectName();
+      
+      if (flutterProjectName) {
+        config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
+        vscode.window.showInformationMessage(
+          `Flutter project detected: ${flutterProjectName}`
+        );
+      } else {
+        vscode.window.showWarningMessage(
+          'No pubspec.yaml found. Please set the package name manually in settings.'
+        );
+      }
     }
     
     // Determine the ARB folder path based on the first workspace folder
@@ -69,6 +136,7 @@ export function activate(context: vscode.ExtensionContext) {
       arbsFolder,
       files: checked,
       apiKey,
+      packageName,
       backup,
     });
 
