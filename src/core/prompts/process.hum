@@ -1,0 +1,9 @@
+Voici le fichier 'app_{lang}.arb' :
+<app_{lang}.arb>
+{arb_file}
+</app_{lang}.arb>
+
+et voici le fichier flutter :
+<flutter_file.dart>
+{flutter_file}
+</flutter_file.dart>

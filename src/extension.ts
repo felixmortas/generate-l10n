@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { L10nProcessor } from "auto-l10n-ts"; 
+import { L10nProcessor } from "./core/l10nProcessor.js";
 
-/**
+ /**
  * Activates the extension when VSCode loads it.
  * Registers commands for toggling files, processing selected files, and opening the extension settings.
  * @param context - VSCode extension context.

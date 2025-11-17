@@ -1,0 +1,8 @@
+Tu es un expert en langue. Dans ce fichier en code flutter, évalue la langue de l'utilisateur à partir du texte dans les objets d'interface utilisateur.
+Ton choix doit se faire à partir de cette liste de lang tags : {langs}
+Ta réponse finale doit être le tag de la langue. N'utilise aucun formatage de style ou caractère spécial (*) autour de la réponse finale. 
+Explique ton raisonnement puis formule ta réponse finale de cette manière :
+REPONSE FINALE : [REPONSE FINALE]
+
+Exemple :
+REPONSE FINALE : fr

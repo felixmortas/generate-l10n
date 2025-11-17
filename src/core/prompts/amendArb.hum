@@ -1,0 +1,7 @@
+Réallise la traduction complète des valeurs de ce fichier json dans la langue correspondant au lang_tag, en conservant les clefs intactes.
+
+lang_tag : {lang_tag}
+
+<json>
+{input}
+</json>

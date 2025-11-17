@@ -3,3 +3,8 @@ dist
 node_modules
 .vscode-test/
 *.vsix
+**/tests
+.env
+*.bak
+.tmp-*
+src/test_files
