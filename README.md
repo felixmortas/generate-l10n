@@ -78,13 +78,21 @@ The extension provides an interactive **tree view**, file selection, and direct 
 
 Configure the extension via **Settings** or the `configureExtension` command:
 
-| Setting                 | Type   | Default                  | Description                                         |
-| ----------------------- | ------ | ------------------------ | --------------------------------------------------- |
-| `generateL10n.provider` | string | `"mistral"`              | LLM provider to use (`openai`, `mistral`, `google`) |
-| `generateL10n.apiKey`   | string | `""`                     | API key for the selected provider                   |
-| `generateL10n.model`    | string | `"mistral-small-latest"` | LLM model used for processing                       |
+| Setting                    | Type    | Default                  | Description                                                    |
+| -------------------------- | ------- | ------------------------ | -------------------------------------------------------------- |
+| `generateL10n.provider`    | string  | `"mistral"`              | LLM provider to use (`openai`, `mistral`, `google`)            |
+| `generateL10n.apiKey`      | string  | `""`                     | API key for the selected provider                              |
+| `generateL10n.model`       | string  | `"mistral-small-latest"` | LLM model used for processing                                  |
+| `generateL10n.backup`      | boolean | `false`                  | Create backup files before modifying ARB and Flutter files     |
+| `generateL10n.packageName` | string  | `""`                     | Flutter project package name (auto-detected from pubspec.yaml) |
 
-> The API key is required for the extension to function.
+> **Note:** The API key is required for the extension to function.
+
+### Auto-detection
+
+The extension automatically detects your Flutter project name from `pubspec.yaml` when activated. If the `packageName` setting is empty, it will be populated automatically and stored in your workspace settings.
+
+You can manually re-detect the project name using the `Generate L10n: Detect Project Name` command if needed.
 
 ---
 
