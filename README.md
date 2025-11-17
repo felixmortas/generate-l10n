@@ -39,9 +39,8 @@ The extension provides an interactive **tree view**, file selection, and direct 
 
 * Interactive **tree view** of Dart files under `/lib`.
 * Check/uncheck files to include in the localization process.
-* Select **ARB localization files** for multiple languages.
 * Input **API key** for LLM provider.
-* Supports multiple **LLM providers** and models.
+* Supports multiple **LLM providers** and all their models.
 * Automatically executes `flutter gen-l10n` after processing.
 * Full **VSCode native UI integration** (activity bar, command palette, tree view).
 
@@ -88,11 +87,13 @@ Configure the extension via **Settings** or the `configureExtension` command:
 
 > **Note:** The API key is required for the extension to function.
 
+> The model choice is crucial. Most of the tests were carried out using mistral-large-2411 and mistral-small-2509.
+
 ### Auto-detection
 
 The extension automatically detects your Flutter project name from `pubspec.yaml` when activated. If the `packageName` setting is empty, it will be populated automatically and stored in your workspace settings.
 
-You can manually re-detect the project name using the `Generate L10n: Detect Project Name` command if needed.
+You can manually re-detect the project name emptying it in the config tab.
 
 ---
 
@@ -116,7 +117,7 @@ The extension registers the following commands:
 * Displays the `/lib` folder hierarchy.
 * Directories appear collapsible; Dart files are checkable.
 * Checked files are included in LLM processing.
-* Automatically refreshes when files are added or removed.
+* NOT automatically refreshes when files are added or removed. Please remember to press the refresh button.
 * Excludes: `node_modules`, `.git`, `/lib/l10n`.
 
 ---
@@ -124,7 +125,7 @@ The extension registers the following commands:
 ## Technical Details
 
 * Written in **TypeScript** for VSCode extension API.
-* Uses the `auto-l10n-ts` library for Dart/ARB file processing.
+* Uses the `langgraph` library for Dart/ARB file processing using LLM.
 * Interacts with **LLMs** via provider APIs.
 * Launches **Flutter commands** in a VSCode terminal.
 * Fully modular: tree view, commands, and file processing separated for maintainability.
