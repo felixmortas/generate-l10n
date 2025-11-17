@@ -76,6 +76,13 @@ export function activate(context: vscode.ExtensionContext) {
       terminal.show();
       terminal.sendText('flutter gen-l10n');
       treeDataProvider.refresh();
+
+      // uncheck all files after processing
+      checked.forEach(filePath => {
+        const fileNode = new FileNode('', filePath, true);
+        treeDataProvider.toggleCheck(fileNode);
+      });
+      
       vscode.window.showInformationMessage("Processing completed successfully 🎉");
     } catch (err: any) {
       vscode.window.showErrorMessage(`Error: ${err.message}`);
