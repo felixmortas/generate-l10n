@@ -43,6 +43,11 @@
           "type": "string",
           "default": "mistral-small-latest",
           "description": "LLM model name to use for processing."
+        },
+        "generateL10n.backup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Create backup files before modifying ARB and Flutter files."
         }
       }
     },

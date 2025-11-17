@@ -46,6 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
     const apiKey = config.get<string>('apiKey') ?? '';
     const provider = config.get<string>('provider') ?? 'mistral';
     const model = config.get<string>('model') ?? 'mistral-small-latest';
+    const backup = config.get<boolean>('backup') ?? false;
 
     if (!apiKey) {
       vscode.window.showErrorMessage(
@@ -68,6 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
       arbsFolder,
       files: checked,
       apiKey,
+      backup,
     });
 
     try {
@@ -82,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
         const fileNode = new FileNode('', filePath, true);
         treeDataProvider.toggleCheck(fileNode);
       });
-      
+
       vscode.window.showInformationMessage("Processing completed successfully 🎉");
     } catch (err: any) {
       vscode.window.showErrorMessage(`Error: ${err.message}`);
