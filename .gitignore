@@ -7,4 +7,4 @@ node_modules
 .env
 *.bak
 .tmp-*
-src/test_files
+src/test/fixtures
