@@ -1,4 +1,4 @@
-Réallise la traduction complète des valeurs de ce fichier json dans la langue correspondant au lang_tag, en conservant les clefs intactes.
+Traduis intégralement les **valeurs** du fichier JSON suivant dans la langue spécifiée par "lang_tag", tout en conservant toutes les clefs inchangées.
 
 lang_tag : {lang_tag}
 

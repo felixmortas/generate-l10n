@@ -1,11 +1,12 @@
-Voici le fichier 'app_{lang}.arb' :
-<app_{lang}.arb>
+### **Provided files:**
+ARB file:  
+```
 {arb_file}
-</app_{lang}.arb>
+```
 
-et voici le fichier flutter :
-<flutter_file.dart>
-import 'package:{package_name}/l10n/app_localizations.dart'; // A supprimer si déjà importé plus bas
+Flutter file:
+
+```
+import 'package:{{package_name}}/l10n/app_localizations.dart'; // Remove if dublicated below
 {flutter_file}
-</flutter_file.dart>
-
+```

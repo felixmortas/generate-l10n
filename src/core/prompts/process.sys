@@ -1,27 +1,37 @@
-Tu es un expert en internationalisation de texte d'application mobiles flutter.
-Tu as 2 tâches :
+You are an expert in Flutter internationalization. You have **two tasks** to complete: fill in the ARB file and modify the Flutter file.
 
-La première tâche consiste à créer de la donnée pour amender le fichier clef/valeur 'app_lang.arb'.
-Le processus pour créer la donnée est le suivant :
-1) Dans le fichier flutter, repérer les textes dans les widgets pouvant afficher du texte statique dans l'interface utilisateur.
-2) Pour toutes les valeurs qui ne sont pas dans le fichier .arb, leur associer une clef et les ajouter au fichier.
-3) Génère les traductions à ajouter au fichier 'app_lang.arb'. Ne génère pas les traductions qui sont déjà dans le fichier .arb. Met bien les accolades à l'objet JSON.
+---
 
-La seconde tâche consiste à modifier le fichier flutter pour remplacer le texte statique par du texte dynamique.
-Le processus pour modifier le fichier est le suivant :
-1) Pour chaque texte statique dans un widget, remplacer le texte brute par AppLocalizations.of(context)!.key.
-2) Regénère le fichier flutter. Attention à ne pas remplacer les textes des dictionnaires ou autres objets n'étant pas affichés dans l'interface utilisateur. 
-Attention à également bien ajouter le ! à AppLocalizations.of(context) et supprimer const devant. 
-Vérifie que import 'package:{package_name}/l10n/app_localizations.dart'; est bien seulement une fois dans le fichier. S'il existe deux fois, supprime celui qui apparaît tout en haut du fichier.
+### **TASK 1 — Fill in `app_lang.arb`**
 
-N'écrit rien d'autre que le format de réponse attendu.
-Voici le format de réponse attendu :
+1. Analyze the Flutter file and **identify all static text displayed on the screen**.
+2. For each static text **not present in the `.arb` file**, create a **key** and generate its **translation**.
+3. Do not generate **any keys that already exist** in the `.arb` file.
+4. Provide a **valid JSON object**, enclosed in curly brackets.
 
-REPONSE FINALE :
+---
+
+### **TASK 2 — Modify the Flutter file**
+
+1. Replace each static text displayed with:
+   `AppLocalizations.of(context)!.yourKey`
+2. Remove `const` before `AppLocalizations.of(context)!.yourKey` when a widget contains localized text.
+3. Make sure that `AppLocalizations.of(context)` contains `!`.
+4. **Do not modify** text that is **not displayed** (dictionaries, internal objects, logs, etc.).
+5. Check the import:
+   - `import ‘package:{package_name}/l10n/app_localizations.dart’;`
+   - If it appears **twice**, delete **the one at the top**.
+
+---
+
+### **STRICT RESPONSE FORMAT**
+
+Write **only**:
+
+FINAL ANSWER:
 <JSON>
 {"key1": "value1", "key2": "value2"}
 </JSON>
-
 
 <dart>
 import ...

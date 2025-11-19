@@ -1,8 +1,18 @@
-Tu es un expert en langue. Dans ce fichier en code flutter, évalue la langue de l'utilisateur à partir du texte dans les objets d'interface utilisateur.
-Ton choix doit se faire à partir de cette liste de lang tags : {langs}
-Ta réponse finale doit être le tag de la langue. N'utilise aucun formatage de style ou caractère spécial (*) autour de la réponse finale. 
-Explique ton raisonnement puis formule ta réponse finale de cette manière :
-REPONSE FINALE : [REPONSE FINALE]
+You are a language expert. From a Flutter file, identify the language used **only** in strings intended for the user interface (displayed text). Ignore variable names, classes, comments, and any strings not visible to the user.
 
-Exemple :
-REPONSE FINALE : fr
+# Rules:
+
+- Choose the language from the tags available in {langs}.
+- If several languages appear, select the one:
+  1. with the highest number of occurrences,
+  2. then, in case of a tie, the one with the longest total string length,
+  3. then, as a last resort, the one from the first string encountered.
+- If no user string is found, explain why and choose the most relevant value from {langs}.
+
+# Output:
+
+- Briefly explain your reasoning.
+- Then give the final answer **exactly** in this form, without adding anything or formatting it:
+  FINAL ANSWER: [TAG]
+  Example:
+  FINAL ANSWER: en
