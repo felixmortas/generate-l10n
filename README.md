@@ -81,13 +81,13 @@ Configure the extension via **Settings** or the `configureExtension` command:
 | -------------------------- | ------- | ------------------------ | -------------------------------------------------------------- |
 | `generateL10n.provider`    | string  | `"mistral"`              | LLM provider to use (`openai`, `mistral`, `google`)            |
 | `generateL10n.apiKey`      | string  | `""`                     | API key for the selected provider                              |
-| `generateL10n.model`       | string  | `"mistral-small-latest"` | LLM model used for processing                                  |
+| `generateL10n.model`       | string  | `"mistral-large-latest"` | LLM model used for processing                                  |
 | `generateL10n.backup`      | boolean | `false`                  | Create backup files before modifying ARB and Flutter files     |
 | `generateL10n.packageName` | string  | `""`                     | Flutter project package name (auto-detected from pubspec.yaml) |
 
 > **Note:** The API key is required for the extension to function.
 
-> The model choice is crucial. Most of the tests were carried out using mistral-large-2411 and mistral-small-2509.
+> The model choice is crucial. Most of the tests were carried out using mistral-large-2411 and gemini-2.5-flash. Smaller or older models might not get the work done perfectly.
 
 ### Auto-detection
 

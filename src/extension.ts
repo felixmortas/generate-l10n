@@ -91,7 +91,7 @@ const processSelectedFiles = vscode.commands.registerCommand('generateL10n.proce
   const config = vscode.workspace.getConfiguration('generateL10n');
   const apiKey = config.get<string>('apiKey') ?? '';
   const provider = config.get<string>('provider') ?? 'mistral';
-  const model = config.get<string>('model') ?? 'mistral-small-latest';
+  const model = config.get<string>('model') ?? 'mistral-large-latest';
   const backup = config.get<boolean>('backup') ?? false;
   const packageName = config.get<string>('packageName') ?? '';
 

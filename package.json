@@ -41,8 +41,8 @@
         },
         "generateL10n.model": {
           "type": "string",
-          "default": "mistral-small-latest",
-          "description": "LLM model name to use for processing."
+          "default": "mistral-large-latest",
+          "description": "LLM model name to use for processing (default: mistral-large-latest)."
         },
         "generateL10n.backup": {
           "type": "boolean",
