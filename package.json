@@ -82,7 +82,7 @@
         {
           "id": "generateL10nContainer",
           "title": "L10n Generator",
-          "icon": "resources/icon.png"
+          "icon": "resources/icon.svg"
         }
       ]
     },
