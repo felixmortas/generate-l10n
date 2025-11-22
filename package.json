@@ -2,7 +2,7 @@
   "name": "generate-l10n",
   "displayName": "Flutter L10n AI Auto Generator",
   "description": "A VSCode extension to automate localization of Dart/Flutter projects using LLMs. Select files with raw text and let the AI generate .arb variables and translations for you.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/felixmortas/generate-l10n.git"
