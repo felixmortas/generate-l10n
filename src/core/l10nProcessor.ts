@@ -40,7 +40,7 @@ export class L10nProcessor {
    * - Updates ARB and Flutter files safely.
    * - Generates translations for other locales.
    */
-  public async process(): Promise<void> {
+  public async process_files(): Promise<void> {
     const { arbsFolder, files } = this.opts;
     const backup = this.opts.backup ?? false;
     const packageName = this.opts.packageName;
@@ -107,7 +107,7 @@ export class L10nProcessor {
       const flutterContent = await fs.readFile(filePath, "utf8");
 
       // Query LLM to extract ARB keys and potentially updated Flutter content
-      const finalResponse = await this.llm.process(
+      const finalResponse = await this.llm.process_files(
         flutterContent,
         arbContent,
         langTag,

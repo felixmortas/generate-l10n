@@ -148,7 +148,7 @@ const processSelectedFiles = vscode.commands.registerCommand('generateL10n.proce
       
       // Étape 2: Traitement des fichiers ARB
       progress.report({ increment: 20, message: `Processing ${checked.length} file(s)...` });
-      await modifier.process();
+      await modifier.process_files();
       
       progress.report({ increment: 50, message: "Files processed successfully" });
       
