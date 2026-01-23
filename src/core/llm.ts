@@ -116,8 +116,8 @@ export class LLM {
    * @param langs - Candidate languages detected from ARB files.
    * @returns Chosen language tag.
    */
-  async chooseLanguage(doc: string, langs: string[]): Promise<string> {
-    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('chooseLanguage');
+  async chooseFileLanguage(doc: string, langs: string[]): Promise<string> {
+    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('chooseFileLanguage');
     const sysPrompt = sysPromptTemplate.replace('{langs}', langs.join(', '));
     const humPrompt = humPromptTemplate.replace('{doc}', doc);
 

@@ -74,7 +74,7 @@ export class L10nProcessor {
     // Detect the source language by analyzing a Flutter file
     const langProof = await fs.readFile(firstFlutterFile, "utf8");
     console.info("[INFO] Language detection...");
-    const langTagRaw = await this.llm.chooseLanguage(langProof, langs);
+    const langTagRaw = await this.llm.chooseFileLanguage(langProof, langs);
     const langTag = Array.from(langTagRaw)
       .filter((c) => /[a-zA-Z0-9_-]/.test(c))
       .join("");
