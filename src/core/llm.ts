@@ -188,7 +188,8 @@ export class LLM {
     if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
 
     try {
-      return JSON.parse(parts[1].trim());
+      const cleanJson = this._extractJson(parts[1]); // Utilisation du nettoyeur
+      return JSON.parse(cleanJson);
     } catch (e) {
       throw new Error(`Failed to parse LLM JSON response: ${parts[1]}`);
     }
@@ -220,9 +221,22 @@ export class LLM {
     if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
 
     try {
-      return JSON.parse(parts[1].trim());
+      const cleanJson = this._extractJson(parts[1]); // Utilisation du nettoyeur
+      return JSON.parse(cleanJson);
     } catch (e) {
       throw new Error(`Failed to parse LLM JSON response for translation: ${parts[1]}`);
     }
+  }
+
+  /**
+   * Nettoie la réponse du LLM pour extraire uniquement le JSON,
+   * même s'il est entouré de blocs de code Markdown.
+   */
+  private _extractJson(rawResponse: string): string {
+    // Supprime les blocs de code Markdown (```json ... ``` ou ``` ... ```)
+    const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    const candidate = jsonMatch ? jsonMatch[1] : rawResponse;
+    
+    return candidate.trim();
   }
 }
