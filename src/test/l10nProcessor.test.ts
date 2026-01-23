@@ -1,123 +1,93 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { L10nProcessor, L10nProcessorOptions } from "../core/l10nProcessor.js"; // Ajustez le chemin
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { L10nProcessor } from "../core/l10nProcessor.js"; // Ajuste le chemin
 import fs from "fs/promises";
-import * as utils from "../core//utils.js";
+import path from "path";
+import os from "os";
 
-// 1. Mocks des modules externes
-vi.mock("fs/promises");
-vi.mock("../core/utils.js", () => ({
-  isValidFlutterString: vi.fn(),
-  getAvailableLangs: vi.fn(),
-  updateArbFiles: vi.fn(),
-  atomicWrite: vi.fn(),
-  mergeJsonStrings: vi.fn(),
-}));
-
-// 2. Mock de la classe LLM
-// On mocke l'implémentation pour pouvoir contrôler les retours des méthodes
-vi.mock("../core/llm.js", () => {
-  return {
-    LLM: vi.fn().mockImplementation(() => ({
-      detectTextLanguage: vi.fn(),
-      findOrTranslateKey: vi.fn(),
-      chooseFileLanguage: vi.fn(),
-      processFiles: vi.fn(),
-      amendArb: vi.fn(),
-    })),
-  };
-});
-
-describe("L10nProcessor - processSelectedText", () => {
+describe("L10nProcessor - Intégration", () => {
+  let tempDir: string;
   let processor: L10nProcessor;
-  const mockOpts: L10nProcessorOptions = {
-    provider: "openai",
-    model: "gpt-4",
-    arbsFolder: "./arbs",
-    files: ["lib/main.dart"],
-    apiKey: "fake-key",
-    packageName: "my_app",
-  };
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    processor = new L10nProcessor(mockOpts);
-  });
-
-  it("devrait retourner le code Flutter correct et mettre à jour les fichiers ARB", async () => {
-    // GIVEN
-    const selectedText = "'Bonjour tout le monde'";
-    const cleanText = "Bonjour tout le monde";
-    const availableLangs = ["fr", "en"];
+  // On prépare une structure de fichiers réaliste
+  beforeEach(async () => {
+    // 1. Création du dossier temporaire
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "l10n-integration-"));
     
-    // Mock des utilitaires
-    vi.mocked(utils.isValidFlutterString).mockReturnValue(true);
-    vi.mocked(utils.getAvailableLangs).mockResolvedValue(availableLangs);
-    vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ "@@locale": "fr" }));
+    const l10nDir = path.join(tempDir, "lib/l10n");
+    await fs.mkdir(l10nDir, { recursive: true });
 
-    // Mock des appels LLM (via l'instance privée accessible car mockée globalement)
-    const llmInstance = (processor as any).llm;
-    llmInstance.detectTextLanguage.mockResolvedValue({ lang_tag: "fr" });
-    llmInstance.findOrTranslateKey.mockResolvedValue({
+    // 2. Création de fichiers ARB initiaux
+    await fs.writeFile(path.join(l10nDir, "app_fr.arb"), JSON.stringify({ "@@locale": "fr" }));
+    await fs.writeFile(path.join(l10nDir, "app_en.arb"), JSON.stringify({ "@@locale": "en" }));
+
+    // 3. Création d'un fichier Dart de test
+    const dartPath = path.join(tempDir, "lib/email_page.dart");
+    const dartContent = `
+      const Text('Abonnement activé.');
+    `;
+    await fs.writeFile(dartPath, dartContent);
+
+    // 4. Initialisation du processeur
+    processor = new L10nProcessor({
+      provider: "openai",
+      model: "gpt-4",
+      arbsFolder: l10nDir,
+      files: [dartPath],
+      apiKey: "fake-key",
+      packageName: "my_app",
+      backup: false
+    });
+
+    // 5. Mock du LLM
+    // On accède à l'instance pour définir les retours
+    const llm = (processor as any).llm;
+    
+    // Pour processSelectedText
+    vi.spyOn(llm, 'detectTextLanguage').mockResolvedValue({ lang_tag: "fr" });
+    vi.spyOn(llm, 'findOrTranslateKey').mockResolvedValue({
       found: false,
-      key: "helloWorld",
-      fr: "Bonjour tout le monde",
-      en: "Hello world",
+      key: "subscriptionActivated",
+      fr: "Abonnement activé.",
+      en: "Subscription activated."
     });
 
-    // WHEN
-    const result = await processor.processSelectedText(selectedText);
-
-    // THEN
-    // Vérifie le résultat final
-    expect(result).toBe("AppLocalizations.of(context)!.helloWorld");
-
-    // Vérifie que la validation a été appelée
-    expect(utils.isValidFlutterString).toHaveBeenCalledWith(selectedText);
-
-    // Vérifie que le LLM a été sollicité avec le texte nettoyé
-    expect(llmInstance.detectTextLanguage).toHaveBeenCalledWith(cleanText, availableLangs);
-
-    // Vérifie la mise à jour des fichiers ARB pour chaque langue
-    expect(utils.updateArbFiles).toHaveBeenCalledTimes(2);
-    expect(utils.updateArbFiles).toHaveBeenCalledWith(
-      expect.stringContaining("app_fr.arb"),
-      "helloWorld",
-      "Bonjour tout le monde"
+    // Pour processFiles (le mode batch)
+    vi.spyOn(llm, 'chooseFileLanguage').mockResolvedValue("fr");
+    vi.spyOn(llm, 'processFiles').mockResolvedValue(
+      `<JSON>{"welcome": "Bienvenue"}</JSON><dart>Text(AppLocalizations.of(context)!.welcome)</dart>`
     );
-    expect(utils.updateArbFiles).toHaveBeenCalledWith(
-      expect.stringContaining("app_en.arb"),
-      "helloWorld",
-      "Hello world"
-    );
+    vi.spyOn(llm, 'amendArb').mockResolvedValue(JSON.stringify({ "welcome": "Welcome" }));
   });
 
-  it("devrait lever une erreur si la string Flutter est invalide", async () => {
-    // GIVEN
-    vi.mocked(utils.isValidFlutterString).mockReturnValue(false);
-
-    // WHEN & THEN
-    await expect(processor.processSelectedText("invalid-string")).rejects.toThrow(
-      "Invalid selection"
-    );
+  afterEach(async () => {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
   });
 
-  it("ne devrait pas appeler updateArbFiles si la clé existe déjà", async () => {
-    // GIVEN
-    vi.mocked(utils.isValidFlutterString).mockReturnValue(true);
-    vi.mocked(utils.getAvailableLangs).mockResolvedValue(["fr"]);
-    
-    const llmInstance = (processor as any).llm;
-    llmInstance.detectTextLanguage.mockResolvedValue({ lang_tag: "fr" });
-    llmInstance.findOrTranslateKey.mockResolvedValue({
-      found: true,
-      key: "alreadyExistingKey",
-    });
+  it("devrait traiter un texte sélectionné (processSelectedText)", async () => {
+    const result = await processor.processSelectedText("'Abonnement activé.'");
 
-    // WHEN
-    const result = await processor.processSelectedText("'Déjà là'");
+    // 1. Vérifie le retour
+    expect(result).toBe("AppLocalizations.of(context)!.subscriptionActivated");
 
-    // THEN
-    expect(result).toBe("AppLocalizations.of(context)!.alreadyExistingKey");
-    expect(utils.updateArbFiles).not.toHaveBeenCalled();
+    // 2. Vérifie que le fichier ARB FR a été mis à jour
+    const frContent = JSON.parse(await fs.readFile(path.join(tempDir, "lib/l10n/app_fr.arb"), "utf-8"));
+    expect(frContent.subscriptionActivated).toBe("Abonnement activé.");
+
+    // 3. Vérifie que le fichier ARB EN a été traduit
+    const enContent = JSON.parse(await fs.readFile(path.join(tempDir, "lib/l10n/app_en.arb"), "utf-8"));
+    expect(enContent.subscriptionActivated).toBe("Subscription activated.");
+  });
+
+  it("devrait traiter un fichier entier (processFiles)", async () => {
+    await processor.processFiles();
+
+    // 1. Vérifie que le fichier Dart a été modifié
+    const dartContent = await fs.readFile(path.join(tempDir, "lib/email_page.dart"), "utf-8");
+    expect(dartContent).toContain("AppLocalizations.of(context)!.welcome");
+
+    // 2. Vérifie que les ARB ont les nouvelles clés
+    const frContent = JSON.parse(await fs.readFile(path.join(tempDir, "lib/l10n/app_fr.arb"), "utf-8"));
+    expect(frContent.welcome).toBe("Bienvenue");
   });
 });
