@@ -1,0 +1,5 @@
+Texte à traiter : "{text}"
+Contenu ARB source : {source_arb}
+Langues demandées : {langs}
+
+Analyse et génère le JSON après la balise.

@@ -171,23 +171,58 @@ export class LLM {
     return parts.slice(-1)[0].trim();
   }
 
-  /**
-   * Détecte la langue d'un court texte parmi une liste de tags.
+/**
+   * Détecte la langue d'un texte sélectionné parmi les langues disponibles.
+   * @param text Le texte brut sélectionné.
+   * @param langs Liste des tags de langue disponibles (ex: ["fr", "en"]).
    */
   public async detectTextLanguage(text: string, langs: string[]): Promise<{ lang_tag: string }> {
-    // Sera implémenté avec un prompt LLM plus tard
-    return { lang_tag: "" };
+    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('detectTextLanguage');
+    
+    const sysPrompt = sysPromptTemplate.replace('{langs}', langs.join(', '));
+    const humPrompt = humPromptTemplate.replace('{text}', text);
+
+    const response = await this._invoke(sysPrompt, humPrompt);
+
+    const parts = response.split('REPONSE FINALE :');
+    if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
+
+    try {
+      return JSON.parse(parts[1].trim());
+    } catch (e) {
+      throw new Error(`Failed to parse LLM JSON response: ${parts[1]}`);
+    }
   }
 
   /**
-   * Cherche si le texte existe dans l'ARB source ou génère les traductions.
+   * Cherche si le texte existe déjà dans le fichier ARB source ou génère les traductions
+   * et une clé appropriée pour tous les fichiers ARB.
+   * @param text Le texte à internationaliser.
+   * @param sourceArbContent Contenu JSON du fichier ARB de la langue source.
+   * @param langs Liste de toutes les langues du projet.
    */
   public async findOrTranslateKey(
     text: string, 
     sourceArbContent: string, 
     langs: string[]
   ): Promise<{ found: boolean; key: string; [lang: string]: any }> {
-    // Sera implémenté avec un prompt LLM plus tard
-    return { found: false, key: "" };
+    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('findOrTranslateKey');
+    
+    const sysPrompt = sysPromptTemplate;
+    const humPrompt = humPromptTemplate
+      .replace('{text}', text)
+      .replace('{source_arb}', sourceArbContent)
+      .replace('{langs}', langs.join(', '));
+
+    const response = await this._invoke(sysPrompt, humPrompt);
+
+    const parts = response.split('REPONSE FINALE :');
+    if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
+
+    try {
+      return JSON.parse(parts[1].trim());
+    } catch (e) {
+      throw new Error(`Failed to parse LLM JSON response for translation: ${parts[1]}`);
+    }
   }
 }
