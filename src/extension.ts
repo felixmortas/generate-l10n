@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
 import { L10nProcessor } from "./core/l10nProcessor.js";
+import { isValidFlutterString, executeGenL10n } from "./core/utils.js";
 
 /**
  * Reads the Flutter project name from pubspec.yaml
@@ -75,120 +76,198 @@ export function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(toggleCheck);
 
- /**
- * Command: processSelectedFiles
- * Processes all checked localization files using L10nProcessor and the configured AI provider/model.
- */
-const processSelectedFiles = vscode.commands.registerCommand('generateL10n.processSelectedFiles', async () => {
-  const checked = treeDataProvider.getCheckedFiles();
+  /**
+   * Command: processSelectedFiles
+   * Processes all checked localization files using L10nProcessor and the configured AI provider/model.
+   */
+  const processSelectedFiles = vscode.commands.registerCommand('generateL10n.processSelectedFiles', async () => {
+    const checked = treeDataProvider.getCheckedFiles();
 
-  if (checked.length === 0) {
-    vscode.window.showWarningMessage('No files are checked.');
-    return;
-  }
-
-  // Get configuration from extension settings
-  const config = vscode.workspace.getConfiguration('generateL10n');
-  const apiKey = config.get<string>('apiKey') ?? '';
-  const provider = config.get<string>('provider') ?? 'mistral';
-  const model = config.get<string>('model') ?? 'mistral-large-latest';
-  const backup = config.get<boolean>('backup') ?? false;
-  const packageName = config.get<string>('packageName') ?? '';
-
-  if (!apiKey) {
-    vscode.window.showErrorMessage(
-      "Missing API key. Please set it in the extension settings."
-    );
-    return;
-  }
-
-  // Initialize packageName from pubspec.yaml if not set
-  if (!packageName || packageName === '') {
-    const flutterProjectName = getFlutterProjectName();
-    
-    if (flutterProjectName) {
-      await config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
-      vscode.window.showInformationMessage(
-        `Flutter project detected: ${flutterProjectName}`
-      );
-    } else {
-      vscode.window.showWarningMessage(
-        'No pubspec.yaml found. Please set the package name manually in settings.'
-      );
+    if (checked.length === 0) {
+      vscode.window.showWarningMessage('No files are checked.');
+      return;
     }
-  }
-  
-  // Determine the ARB folder path based on the first workspace folder
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode.window.showErrorMessage("No workspace folder is open.");
-    return;
-  }
-  const arbsFolder = `${workspaceFolders[0].uri.fsPath}/lib/l10n`;
 
-  const modifier = new L10nProcessor({
-    provider,
-    model,
-    arbsFolder,
-    files: checked,
-    apiKey,
-    packageName,
-    backup,
-  });
+    // Get configuration from extension settings
+    const config = vscode.workspace.getConfiguration('generateL10n');
+    const apiKey = config.get<string>('apiKey') ?? '';
+    const provider = config.get<string>('provider') ?? 'mistral';
+    const model = config.get<string>('model') ?? 'mistral-large-latest';
+    const backup = config.get<boolean>('backup') ?? false;
+    const packageName = config.get<string>('packageName') ?? '';
 
-  try {
-    // Étape 1: Démarrage du traitement
-    await vscode.window.withProgress({
-      location: vscode.ProgressLocation.Notification,
-      title: "Processing localization files",
-      cancellable: false
-    }, async (progress) => {
-      
-      progress.report({ increment: 0, message: "Initializing..." });
-      
-      // Étape 2: Traitement des fichiers ARB
-      progress.report({ increment: 20, message: `Processing ${checked.length} file(s)...` });
-      await modifier.processFiles();
-      
-      progress.report({ increment: 50, message: "Files processed successfully" });
-      
-      // Attendre un court instant pour s'assurer que le traitement est complété
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Étape 3: Génération Flutter
-      progress.report({ increment: 70, message: "Running flutter gen-l10n..." });
-      
-      const terminal = vscode.window.createTerminal('Flutter L10n');
-      terminal.show();
-      terminal.sendText('flutter gen-l10n');
-      
-      // Attendre que la commande Flutter soit exécutée
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      progress.report({ increment: 90, message: "Finalizing..." });
-      
-      // Étape 4: Rafraîchissement et nettoyage
-      treeDataProvider.refresh();
+    if (!apiKey) {
+      vscode.window.showErrorMessage(
+        "Missing API key. Please set it in the extension settings."
+      );
+      return;
+    }
 
-      // uncheck all files after processing
-      checked.forEach(filePath => {
-        const fileNode = new FileNode('', filePath, true);
-        treeDataProvider.toggleCheck(fileNode);
-      });
+    // Initialize packageName from pubspec.yaml if not set
+    if (!packageName || packageName === '') {
+      const flutterProjectName = getFlutterProjectName();
       
-      progress.report({ increment: 100, message: "Complete!" });
+      if (flutterProjectName) {
+        await config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
+        vscode.window.showInformationMessage(
+          `Flutter project detected: ${flutterProjectName}`
+        );
+      } else {
+        vscode.window.showWarningMessage(
+          'No pubspec.yaml found. Please set the package name manually in settings.'
+        );
+      }
+    }
+    
+    // Determine the ARB folder path based on the first workspace folder
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      vscode.window.showErrorMessage("No workspace folder is open.");
+      return;
+    }
+    const arbsFolder = `${workspaceFolders[0].uri.fsPath}/lib/l10n`;
+
+    const modifier = new L10nProcessor({
+      provider,
+      model,
+      arbsFolder,
+      files: checked,
+      apiKey,
+      packageName,
+      backup,
     });
 
-    // Notification finale de succès
-    vscode.window.showInformationMessage("Processing completed successfully 🎉");
-    
-  } catch (err: any) {
-    vscode.window.showErrorMessage(`Error: ${err.message}`);
-    console.error(err);
-  }
-});
+    try {
+      // Étape 1: Démarrage du traitement
+      await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Processing localization files",
+        cancellable: false
+      }, async (progress) => {
+        
+        progress.report({ increment: 0, message: "Initializing..." });
+        
+        // Étape 2: Traitement des fichiers ARB
+        progress.report({ increment: 20, message: `Processing ${checked.length} file(s)...` });
+        await modifier.processFiles();
+        
+        progress.report({ increment: 50, message: "Files processed successfully" });
+        
+        // Attendre un court instant pour s'assurer que le traitement est complété
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Étape 3: Génération Flutter
+        progress.report({ increment: 70, message: "Running flutter gen-l10n..." });
+        
+        const terminal = vscode.window.createTerminal('Flutter L10n');
+        terminal.show();
+        terminal.sendText('flutter gen-l10n');
+        
+        // Attendre que la commande Flutter soit exécutée
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        progress.report({ increment: 90, message: "Finalizing..." });
+        
+        // Étape 4: Rafraîchissement et nettoyage
+        treeDataProvider.refresh();
 
-context.subscriptions.push(processSelectedFiles);
+        // uncheck all files after processing
+        checked.forEach(filePath => {
+          const fileNode = new FileNode('', filePath, true);
+          treeDataProvider.toggleCheck(fileNode);
+        });
+        
+        progress.report({ increment: 100, message: "Complete!" });
+      });
+
+      // Notification finale de succès
+      vscode.window.showInformationMessage("Processing completed successfully 🎉");
+      
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Error: ${err.message}`);
+      console.error(err);
+    }
+  });
+
+  context.subscriptions.push(processSelectedFiles);
+
+  /**
+   * Logique commune pour le traitement du texte sélectionné
+   */
+  async function handleSelectedText(executeGen: boolean) {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { return; }
+
+    const selection = editor.selection;
+    const selectedText = editor.document.getText(selection);
+
+    if (!selectedText) {
+      vscode.window.showWarningMessage("No text selected.");
+      return;
+    }
+
+    if (!isValidFlutterString(selectedText)) {
+      vscode.window.showErrorMessage("Sélection invalide : Veuillez sélectionner une String entre quotes (ex: 'texte').");
+      return;
+    }
+
+    // Récupération de la config (identique à votre commande processSelectedFiles)
+    const config = vscode.workspace.getConfiguration('generateL10n');
+    const apiKey = config.get<string>('apiKey') ?? '';
+    const provider = config.get<string>('provider') ?? 'mistral';
+    const model = config.get<string>('model') ?? 'mistral-large-latest';
+    const packageName = config.get<string>('packageName') ?? '';
+    const arbsFolder = path.join(vscode.workspace.workspaceFolders![0].uri.fsPath, 'lib/l10n');
+
+    const processor = new L10nProcessor({
+      provider,
+      model,
+      arbsFolder,
+      files: [], // Non utilisé pour le texte seul
+      apiKey,
+      packageName,
+    });
+
+    try {
+      await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Localizing selection...",
+        cancellable: false
+      }, async (progress) => {
+        
+        // 1. Appel au processeur (votre méthode processSelectedText)
+        const replacement = await processor.processSelectedText(selectedText);
+
+        // 2. Remplacement du texte dans l'éditeur
+        await editor.edit(editBuilder => {
+          editBuilder.replace(selection, replacement);
+        });
+
+        // 3. Exécution de flutter gen-l10n si demandé
+        if (executeGen) {
+          progress.report({ message: "Running flutter gen-l10n..." });
+          await executeGenL10n();
+        }
+      });
+
+      vscode.window.showInformationMessage("Text localized successfully!");
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`L10n Error: ${err.message}`);
+    }
+  }
+
+  // Enregistrement des commandes
+  context.subscriptions.push(
+    vscode.commands.registerCommand('generateL10n.autoL10n', () => handleSelectedText(false)),
+    vscode.commands.registerCommand('generateL10n.autoL10nExecute', () => handleSelectedText(true))
+  );
+
+  // OPTIONNEL : Enregistrement d'un CodeActionProvider pour faire apparaître l'ampoule (Quick Fix)
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider('dart', new L10nCodeActionProvider(), {
+      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+    })
+  );
 
   /**
    * Command: refreshView
@@ -378,6 +457,23 @@ class DirectoryNode {
 }
 
 type TreeNode = FileNode | DirectoryNode;
+
+/**
+ * Classe pour faire apparaître les options dans l'ampoule (Lightbulb)
+ */
+class L10nCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(document: vscode.TextDocument, range: vscode.Range): vscode.CodeAction[] {
+    if (range.isEmpty) { return []; }
+
+    const action = new vscode.CodeAction('Auto-L10n', vscode.CodeActionKind.QuickFix);
+    action.command = { command: 'generateL10n.autoL10n', title: 'Auto-L10n' };
+
+    const actionExec = new vscode.CodeAction('Auto-L10n & Execute', vscode.CodeActionKind.QuickFix);
+    actionExec.command = { command: 'generateL10n.autoL10nExecute', title: 'Auto-L10n & Execute' };
+
+    return [action, actionExec];
+  }
+}
 
 /** Called when the extension is deactivated */
 export function deactivate() {}

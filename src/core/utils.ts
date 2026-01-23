@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import * as vscode from 'vscode';
 
 /**
  * Creates a backup copy of a file.
@@ -131,4 +132,23 @@ export async function updateArbFiles(
     } catch (error) {
         throw new Error(`Failed to update ARB file at ${arbPath}: ${error}`);
     }
+}
+
+/**
+ * Executes the 'flutter gen-l10n' command in a VS Code terminal.
+ * It searches for an existing terminal or creates a new one.
+ */
+export async function executeGenL10n(): Promise<void> {
+    const terminalName = 'Flutter L10n';
+    let terminal = vscode.window.terminals.find(t => t.name === terminalName);
+    
+    if (!terminal) {
+        terminal = vscode.window.createTerminal(terminalName);
+    }
+
+    terminal.show();
+    terminal.sendText('flutter gen-l10n');
+    
+    // On retourne une promesse qui attend un peu pour laisser la commande démarrer
+    return new Promise(resolve => setTimeout(resolve, 2000));
 }

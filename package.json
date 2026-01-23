@@ -75,6 +75,13 @@
         "command": "generateL10n.refreshView",
         "title": "Refresh View",
         "icon": "$(refresh)"
+      },{
+        "command": "generateL10n.autoL10n",
+        "title": "auto-l10n"
+      },
+      {
+        "command": "generateL10n.autoL10nExecute",
+        "title": "auto-l10n & execute"
       }
     ],
     "viewsContainers": {
@@ -117,6 +124,18 @@
           "command": "generateL10n.processSelectedFiles",
           "when": "view == generateL10nView",
           "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "generateL10n.autoL10n",
+          "when": "editorHasSelection",
+          "group": "modification"
+        },
+        {
+          "command": "generateL10n.autoL10nExecute",
+          "when": "editorHasSelection",
+          "group": "modification"
         }
       ]
     }
