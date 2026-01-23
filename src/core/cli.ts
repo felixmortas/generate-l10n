@@ -36,7 +36,7 @@ async function main() {
     packageName: opts.packageName ?? "",
   });
 
-  await processor.process_files();
+  await processor.processFiles();
 }
 
 main().catch((err) => {
