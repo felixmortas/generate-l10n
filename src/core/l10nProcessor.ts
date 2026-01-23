@@ -12,7 +12,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { LLM } from "./llm.js";
-import { atomicWrite, mergeJsonStrings, isValidFlutterString, getAvailableLangs, updateArbFiles} from "./utils.js";
+import { atomicWrite, mergeJsonStrings, isValidFlutterString, getAvailableLangs, updateArbFiles } from "./utils.js";
 
 export interface L10nProcessorOptions {
   provider: string;
