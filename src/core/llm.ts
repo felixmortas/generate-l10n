@@ -170,4 +170,24 @@ export class LLM {
     if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
     return parts.slice(-1)[0].trim();
   }
+
+  /**
+   * Détecte la langue d'un court texte parmi une liste de tags.
+   */
+  public async detectTextLanguage(text: string, langs: string[]): Promise<{ lang_tag: string }> {
+    // Sera implémenté avec un prompt LLM plus tard
+    return { lang_tag: "" };
+  }
+
+  /**
+   * Cherche si le texte existe dans l'ARB source ou génère les traductions.
+   */
+  public async findOrTranslateKey(
+    text: string, 
+    sourceArbContent: string, 
+    langs: string[]
+  ): Promise<{ found: boolean; key: string; [lang: string]: any }> {
+    // Sera implémenté avec un prompt LLM plus tard
+    return { found: false, key: "" };
+  }
 }

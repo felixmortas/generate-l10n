@@ -59,3 +59,30 @@ export function mergeJsonStrings(existingJson: string, newJson: string): string 
         return existingJson;
     }
 }
+
+// utils.ts
+
+/**
+ * Vérifie si la chaîne est entourée de quotes simples ou doubles.
+ */
+export const isValidFlutterString = (text: string): boolean => {
+  return false; // Logique à implémenter plus tard
+};
+
+/**
+ * Scanne le dossier ARB pour extraire les codes langues (ex: ["fr", "en"]).
+ */
+export const getAvailableLangs = async (arbsFolder: string): Promise<string[]> => {
+  return []; // Logique à implémenter plus tard
+};
+
+/**
+ * Fusionne une clé/valeur dans un fichier JSON/ARB de manière atomique.
+ */
+export const updateArbFiles = async (
+  filePath: string, 
+  key: string, 
+  value: string
+): Promise<void> => {
+  // Logique à implémenter plus tard
+};
