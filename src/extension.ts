@@ -77,10 +77,10 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(toggleCheck);
 
   /**
-   * Command: processSelectedFiles
+   * Command: localizeSelectedFiles
    * Processes all checked localization files using L10nProcessor and the configured AI provider/model.
    */
-  const processSelectedFiles = vscode.commands.registerCommand('generateL10n.processSelectedFiles', async () => {
+  const localizeSelectedFiles = vscode.commands.registerCommand('generateL10n.localizeSelectedFiles', async () => {
     const checked = treeDataProvider.getCheckedFiles();
 
     if (checked.length === 0) {
@@ -189,7 +189,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  context.subscriptions.push(processSelectedFiles);
+  context.subscriptions.push(localizeSelectedFiles);
 
   /**
    * Logique commune pour le traitement du texte sélectionné
@@ -211,7 +211,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    // Récupération de la config (identique à votre commande processSelectedFiles)
+    // Récupération de la config (identique à votre commande localizeSelectedFiles)
     const config = vscode.workspace.getConfiguration('generateL10n');
     const apiKey = config.get<string>('apiKey') ?? '';
     const provider = config.get<string>('provider') ?? 'mistral';
@@ -258,8 +258,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Enregistrement des commandes
   context.subscriptions.push(
-    vscode.commands.registerCommand('generateL10n.autoL10n', () => handleSelectedText(false)),
-    vscode.commands.registerCommand('generateL10n.autoL10nExecute', () => handleSelectedText(true))
+    vscode.commands.registerCommand('generateL10n.localizeText', () => handleSelectedText(false)),
+    vscode.commands.registerCommand('generateL10n.localizeTextAndGenerate', () => handleSelectedText(true))
   );
 
   // OPTIONNEL : Enregistrement d'un CodeActionProvider pour faire apparaître l'ampoule (Quick Fix)
@@ -270,13 +270,13 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   /**
-   * Command: refreshView
+   * Command: refreshTreeView
    * Refreshes the tree view to reflect any changes in the file system.
    */
-  const refreshView = vscode.commands.registerCommand('generateL10n.refreshView', () => {
+  const refreshTreeView = vscode.commands.registerCommand('generateL10n.refreshTreeView', () => {
     treeDataProvider.refresh();
   });
-  context.subscriptions.push(refreshView);
+  context.subscriptions.push(refreshTreeView);
 
   /**
    * Command: configureExtension
@@ -465,11 +465,11 @@ class L10nCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(document: vscode.TextDocument, range: vscode.Range): vscode.CodeAction[] {
     if (range.isEmpty) { return []; }
 
-    const action = new vscode.CodeAction('Auto-L10n', vscode.CodeActionKind.QuickFix);
-    action.command = { command: 'generateL10n.autoL10n', title: 'Auto-L10n' };
+    const action = new vscode.CodeAction('Auto-L10n: Localize Text', vscode.CodeActionKind.QuickFix);
+    action.command = { command: 'generateL10n.localizeText', title: 'Auto-L10n: Localize Text' };
 
-    const actionExec = new vscode.CodeAction('Auto-L10n & Execute', vscode.CodeActionKind.QuickFix);
-    actionExec.command = { command: 'generateL10n.autoL10nExecute', title: 'Auto-L10n & Execute' };
+    const actionExec = new vscode.CodeAction('Auto-L10n: Localize & Build', vscode.CodeActionKind.QuickFix);
+    actionExec.command = { command: 'generateL10n.localizeTextAndGenerate', title: 'Auto-L10n: Localize & Build' };
 
     return [action, actionExec];
   }

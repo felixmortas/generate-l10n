@@ -62,8 +62,8 @@
         "title": "Toggle Check"
       },
       {
-        "command": "generateL10n.processSelectedFiles",
-        "title": "Process Selected Files",
+        "command": "generateL10n.localizeSelectedFiles",
+        "title": "Localize Selected Files",
         "icon": "$(play)"
       },
       {
@@ -72,16 +72,17 @@
         "icon": "$(gear)"
       },
       {
-        "command": "generateL10n.refreshView",
-        "title": "Refresh View",
+        "command": "generateL10n.refreshTreeView",
+        "title": "Refresh Tree View",
         "icon": "$(refresh)"
-      },{
-        "command": "generateL10n.autoL10n",
-        "title": "auto-l10n"
       },
       {
-        "command": "generateL10n.autoL10nExecute",
-        "title": "auto-l10n & execute"
+        "command": "generateL10n.localizeText",
+        "title": "Auto-L10n: Localize Text"
+      },
+      {
+        "command": "generateL10n.localizeTextAndGenerate",
+        "title": "Auto-L10n: Localize & Build"
       }
     ],
     "viewsContainers": {
@@ -104,12 +105,12 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "generateL10n.processSelectedFiles"
+          "command": "generateL10n.localizeSelectedFiles"
         }
       ],
       "view/title": [
         {
-          "command": "generateL10n.refreshView",
+          "command": "generateL10n.refreshTreeView",
           "when": "view == generateL10nView",
           "group": "navigation",
           "icon": "refresh"
@@ -121,19 +122,19 @@
           "icon": "gear"
         },
         {
-          "command": "generateL10n.processSelectedFiles",
+          "command": "generateL10n.localizeSelectedFiles",
           "when": "view == generateL10nView",
           "group": "navigation"
         }
       ],
       "editor/context": [
         {
-          "command": "generateL10n.autoL10n",
+          "command": "generateL10n.localizeText",
           "when": "editorHasSelection",
           "group": "modification"
         },
         {
-          "command": "generateL10n.autoL10nExecute",
+          "command": "generateL10n.localizeTextAndGenerate",
           "when": "editorHasSelection",
           "group": "modification"
         }
