@@ -3,6 +3,7 @@ import { L10nProcessor } from "./core/l10nProcessor.js";
 import { isValidFlutterString, executeGenL10n, runWithProgress } from "./core/utils.js";
 import { ConfigurationManager } from "./core/configurationManager.js";
 import { MyTreeDataProvider, FileNode } from "./views/l10nTreeView.js";
+import { L10nCodeActionProvider } from "./providers/l10nCodeActionProvider.js";
 
  /**
  * Activates the extension when VSCode loads it.
@@ -176,23 +177,6 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   });
   context.subscriptions.push(configureExtension);
-}
-
-/**
- * Class to display options in the lightbulb (Quick Fix) when text is selected.
- */
-class L10nCodeActionProvider implements vscode.CodeActionProvider {
-  provideCodeActions(document: vscode.TextDocument, range: vscode.Range): vscode.CodeAction[] {
-    if (range.isEmpty) { return []; }
-
-    const action = new vscode.CodeAction('Auto-L10n: Localize Text', vscode.CodeActionKind.QuickFix);
-    action.command = { command: 'generateL10n.localizeText', title: 'Auto-L10n: Localize Text' };
-
-    const actionExec = new vscode.CodeAction('Auto-L10n: Localize & Build', vscode.CodeActionKind.QuickFix);
-    actionExec.command = { command: 'generateL10n.localizeTextAndGenerate', title: 'Auto-L10n: Localize & Build' };
-
-    return [action, actionExec];
-  }
 }
 
 /** Called when the extension is deactivated */
