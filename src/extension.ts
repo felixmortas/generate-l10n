@@ -1,63 +1,20 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as yaml from 'yaml';
 import { L10nProcessor } from "./core/l10nProcessor.js";
 import { isValidFlutterString, executeGenL10n } from "./core/utils.js";
-
-/**
- * Reads the Flutter project name from pubspec.yaml
- * @returns The project name or null if not found
- */
-function getFlutterProjectName(): string | null {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    return null;
-  }
-
-  // Search for pubspec.yaml in the workspace root
-  const pubspecPath = path.join(workspaceFolders[0].uri.fsPath, 'pubspec.yaml');
-
-  if (!fs.existsSync(pubspecPath)) {
-    return null;
-  }
-
-  try {
-    const content = fs.readFileSync(pubspecPath, 'utf8');
-    const parsed = yaml.parse(content);
-    return parsed.name || null;
-  } catch (error) {
-    console.error('Error reading pubspec.yaml:', error);
-    return null;
-  }
-}
+import { ConfigurationManager } from "./core/configurationManager.js";
 
  /**
  * Activates the extension when VSCode loads it.
  * Registers commands for toggling files, processing selected files, and opening the extension settings.
  * @param context - VSCode extension context.
  */
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   console.log('Extension activated!');
 
   // Initialize packageName from pubspec.yaml if not set
   const config = vscode.workspace.getConfiguration('generateL10n');
-  const packageName = config.get<string>('packageName');
-
-  if (!packageName || packageName === '') {
-    const flutterProjectName = getFlutterProjectName();
-    
-    if (flutterProjectName) {
-      config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
-      vscode.window.showInformationMessage(
-        `Flutter project detected: ${flutterProjectName}`
-      );
-    } else {
-      vscode.window.showWarningMessage(
-        'No pubspec.yaml found. Please set the package name manually in settings.'
-      );
-    }
+  if (!config.get<string>('packageName')) {
+      await ConfigurationManager.ensurePackageName(config);
   }
 
   const treeDataProvider = new MyTreeDataProvider(context);
@@ -89,52 +46,15 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // Get configuration from extension settings
-    const config = vscode.workspace.getConfiguration('generateL10n');
-    const apiKey = config.get<string>('apiKey') ?? '';
-    const provider = config.get<string>('provider') ?? 'mistral';
-    const model = config.get<string>('model') ?? 'mistral-large-latest';
-    const backup = config.get<boolean>('backup') ?? false;
-    const packageName = config.get<string>('packageName') ?? '';
-
-    if (!apiKey) {
-      vscode.window.showErrorMessage(
-        "Missing API key. Please set it in the extension settings."
-      );
-      return;
-    }
-
-    // Initialize packageName from pubspec.yaml if not set
-    if (!packageName || packageName === '') {
-      const flutterProjectName = getFlutterProjectName();
-      
-      if (flutterProjectName) {
-        await config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
-        vscode.window.showInformationMessage(
-          `Flutter project detected: ${flutterProjectName}`
-        );
-      } else {
-        vscode.window.showWarningMessage(
-          'No pubspec.yaml found. Please set the package name manually in settings.'
-        );
-      }
+    const extConfig = await ConfigurationManager.getConfig();
+    if (!extConfig) {
+        // Errors are already handled/displayed inside getConfig
+        return; 
     }
     
-    // Determine the ARB folder path based on the first workspace folder
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      vscode.window.showErrorMessage("No workspace folder is open.");
-      return;
-    }
-    const arbsFolder = `${workspaceFolders[0].uri.fsPath}/lib/l10n`;
-
-    const modifier = new L10nProcessor({
-      provider,
-      model,
-      arbsFolder,
+    const processor = new L10nProcessor({
+      ...extConfig,
       files: checked,
-      apiKey,
-      packageName,
-      backup,
     });
 
     try {
@@ -149,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
         
         // Step 2: Processing ARB files
         progress.report({ increment: 20, message: `Processing ${checked.length} file(s)...` });
-        await modifier.processFiles();
+        await processor.processFiles();
         
         progress.report({ increment: 50, message: "Files processed successfully" });
         
@@ -212,20 +132,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // Retrieval of configuration (identical to localizeSelectedFiles command)
-    const config = vscode.workspace.getConfiguration('generateL10n');
-    const apiKey = config.get<string>('apiKey') ?? '';
-    const provider = config.get<string>('provider') ?? 'mistral';
-    const model = config.get<string>('model') ?? 'mistral-large-latest';
-    const packageName = config.get<string>('packageName') ?? '';
-    const arbsFolder = path.join(vscode.workspace.workspaceFolders![0].uri.fsPath, 'lib/l10n');
+    const extConfig = await ConfigurationManager.getConfig();
+    if (!extConfig) { return; }
 
     const processor = new L10nProcessor({
-      provider,
-      model,
-      arbsFolder,
-      files: [], // Not used for text only
-      apiKey,
-      packageName,
+      ...extConfig,
+      files: [], // Still not used for text-only processing
     });
 
     try {
@@ -256,7 +168,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  // Enregistrement des commandes
+  // Commands recording
   context.subscriptions.push(
     vscode.commands.registerCommand('generateL10n.localizeText', () => handleSelectedText(false)),
     vscode.commands.registerCommand('generateL10n.localizeTextAndGenerate', () => handleSelectedText(true))

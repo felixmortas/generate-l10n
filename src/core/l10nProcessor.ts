@@ -13,15 +13,10 @@ import fs from "fs/promises";
 import path from "path";
 import { LLM } from "./llm.js";
 import { atomicWrite, mergeJsonStrings, isValidFlutterString, getAvailableLangs, updateArbFiles } from "./utils.js";
+import { ExtensionConfiguration } from "./configurationManager.js";
 
-export interface L10nProcessorOptions {
-  provider: string;
-  model: string;
-  arbsFolder: string;
+export interface L10nProcessorOptions extends ExtensionConfiguration {
   files: string[];
-  apiKey: string;
-  packageName: string;
-  backup?: boolean;
 }
 
 export class L10nProcessor {
@@ -41,12 +36,12 @@ export class L10nProcessor {
    * - Generates translations for other locales.
    */
   public async processFiles(): Promise<void> {
-    const { arbsFolder, files } = this.opts;
-    const backup = this.opts.backup ?? false;
-    const packageName = this.opts.packageName;
+    // Destructuring clean configuration values
+    const { arbsFolder, files, backup, packageName } = this.opts;
 
     // Validate ARB folder existence
     const resolvedArbsFolder = path.resolve(arbsFolder);
+
     try {
       await fs.access(resolvedArbsFolder);
     } catch {
