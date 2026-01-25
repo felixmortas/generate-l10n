@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { L10nProcessor } from "../core/l10nProcessor.js";
+import { L10nProcessor, L10nProcessorOptions } from "../core/l10nProcessor.js";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -28,7 +28,7 @@ describe("L10nProcessor - Intégration", () => {
     await fs.writeFile(dartPath, dartContent);
 
     // 4. Processor initialization
-    processor = new L10nProcessor({
+    const processorOptions: L10nProcessorOptions = {
       provider: "openai",
       model: "gpt-4",
       arbsFolder: l10nDir,
@@ -36,7 +36,9 @@ describe("L10nProcessor - Intégration", () => {
       apiKey: "fake-key",
       packageName: "my_app",
       backup: false
-    });
+    };
+
+    processor = new L10nProcessor(processorOptions);
 
     // 5. LLM Mocking
     // Access the instance to define returns

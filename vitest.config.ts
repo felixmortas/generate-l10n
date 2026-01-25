@@ -8,5 +8,6 @@ export default defineConfig({
       '**/out/**',
       'src/test/extension.test.ts', // On exclut le test VS Code
     ],
+    setupFiles: ['./src/test/setup.ts'],
   },
 })
