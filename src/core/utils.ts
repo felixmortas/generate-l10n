@@ -135,8 +135,27 @@ export async function updateArbFiles(
 }
 
 /**
- * Executes the 'flutter gen-l10n' command in a VS Code terminal.
- * It searches for an existing terminal or creates a new one.
+ * Utility to wrap long-running tasks with a VS Code progress notification.
+ */
+export async function runWithProgress<T>(
+    title: string,
+    task: (progress: vscode.Progress<{ message?: string; increment?: number }>) => Promise<T>
+): Promise<T> {
+    return await vscode.window.withProgress(
+        {
+            location: vscode.ProgressLocation.Notification,
+            title: title,
+            cancellable: false
+        },
+        async (progress) => {
+            return await task(progress);
+        }
+    );
+}
+
+/**
+ * Executes the 'flutter gen-l10n' command.
+ * Unified version used across the extension.
  */
 export async function executeGenL10n(): Promise<void> {
     const terminalName = 'Flutter L10n';
@@ -149,6 +168,6 @@ export async function executeGenL10n(): Promise<void> {
     terminal.show();
     terminal.sendText('flutter gen-l10n');
     
-    // We return a promise that waits a little while to let the command start.
+    // Wait for the command to trigger and provide visual feedback time
     return new Promise(resolve => setTimeout(resolve, 2000));
 }

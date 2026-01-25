@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { L10nProcessor } from "./core/l10nProcessor.js";
-import { isValidFlutterString, executeGenL10n } from "./core/utils.js";
+import { isValidFlutterString, executeGenL10n, runWithProgress } from "./core/utils.js";
 import { ConfigurationManager } from "./core/configurationManager.js";
 
  /**
@@ -58,40 +58,21 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     try {
-      // Step 1: Starting process
-      await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: "Processing localization files",
-        cancellable: false
-      }, async (progress) => {
-        
+      await runWithProgress("Processing localization files", async (progress) => {
         progress.report({ increment: 0, message: "Initializing..." });
         
-        // Step 2: Processing ARB files
         progress.report({ increment: 20, message: `Processing ${checked.length} file(s)...` });
         await processor.processFiles();
         
         progress.report({ increment: 50, message: "Files processed successfully" });
-        
-        // Wait a short moment to ensure processing is completed
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Step 3: Flutter generation
         progress.report({ increment: 70, message: "Running flutter gen-l10n..." });
-        
-        const terminal = vscode.window.createTerminal('Flutter L10n');
-        terminal.show();
-        terminal.sendText('flutter gen-l10n');
-        
-        // Wait for the Flutter command to be executed
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await executeGenL10n();
         
         progress.report({ increment: 90, message: "Finalizing..." });
         
-        // Step 4: Refresh Tree View and cleanup
         treeDataProvider.refresh();
-
-        // uncheck all files after processing
         checked.forEach(filePath => {
           const fileNode = new FileNode('', filePath, true);
           treeDataProvider.toggleCheck(fileNode);
@@ -100,9 +81,7 @@ export async function activate(context: vscode.ExtensionContext) {
         progress.report({ increment: 100, message: "Complete!" });
       });
 
-      // Final success notification
       vscode.window.showInformationMessage("Processing completed successfully 🎉");
-      
     } catch (err: any) {
       vscode.window.showErrorMessage(`Error: ${err.message}`);
       console.error(err);
@@ -141,16 +120,11 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     try {
-      await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: "Localizing selection...",
-        cancellable: false
-      }, async (progress) => {
-        
-        // 1. Call to the processor (processSelectedText method)
+      await runWithProgress("Localizing selection...", async (progress) => {
+        // 1. Call to the processor
         const replacement = await processor.processSelectedText(selectedText);
 
-        // 2. Replacement of the text in the editor
+        // 2. Replacement in the editor
         await editor.edit(editBuilder => {
           editBuilder.replace(selection, replacement);
         });
