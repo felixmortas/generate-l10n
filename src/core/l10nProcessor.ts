@@ -35,7 +35,7 @@ export class L10nProcessor {
    * - Updates ARB and Flutter files safely.
    * - Generates translations for other locales.
    */
-  public async processFiles(): Promise<void> {
+  public async localizeFiles(): Promise<void> {
     // Destructuring clean configuration values
     const { arbsFolder, files, backup, packageName } = this.opts;
 
@@ -102,7 +102,7 @@ export class L10nProcessor {
       const flutterContent = await fs.readFile(filePath, "utf8");
 
       // Query LLM to extract ARB keys and potentially updated Flutter content
-      const finalResponse = await this.llm.processFiles(
+      const finalResponse = await this.llm.localizeFiles(
         flutterContent,
         arbContent,
         langTag,
@@ -182,7 +182,7 @@ export class L10nProcessor {
    * * @param selectedText The raw text selected in the editor (e.g., "Hello")
    * @returns The replacement string (e.g., AppLocalizations.of(context)!.hello)
    */
-  public async processSelectedText(selectedText: string): Promise<string> {
+  public async localizeSelectedText(selectedText: string): Promise<string> {
     const { arbsFolder } = this.opts;
 
     // 0. Validation : The text must be enclosed in quotation marks (business rule).

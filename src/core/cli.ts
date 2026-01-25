@@ -60,7 +60,7 @@ async function main() {
   const processor = new L10nProcessor(processorOptions);
 
   try {
-    await processor.processFiles();
+    await processor.localizeFiles();
     console.info("[SUCCESS] Localization completed successfully.");
   } catch (err: any) {
     throw err;

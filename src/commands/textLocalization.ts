@@ -55,7 +55,7 @@ export class TextLocalizationCommand {
     runGen: boolean
   ) {
     await runWithProgress("Localizing selection...", async (progress) => {
-      const replacement = await processor.processSelectedText(text);
+      const replacement = await processor.localizeSelectedText(text);
 
       await editor.edit(editBuilder => {
         editBuilder.replace(selection, replacement);

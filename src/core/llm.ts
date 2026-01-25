@@ -137,8 +137,8 @@ export class LLM {
    * @param lang - Source language tag.
    * @returns String containing JSON (keys) + updated Flutter code.
    */
-  async processFiles(flutterFile: string, arbFile: string, lang: string, packageName: string): Promise<string> {
-    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('processFiles');
+  async localizeFiles(flutterFile: string, arbFile: string, lang: string, packageName: string): Promise<string> {
+    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('localizeFiles');
     const humPrompt = humPromptTemplate
       .replace('{arb_file}', arbFile)
       .replace('{flutter_file}', flutterFile)

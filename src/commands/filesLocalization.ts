@@ -32,7 +32,7 @@ export class FilesLocalizationCommand {
   private async runWorkflow(processor: L10nProcessor, checked: string[]) {
     await runWithProgress("Processing files localization", async (progress) => {
       progress.report({ increment: 20, message: `Processing ${checked.length} file(s)...` });
-      await processor.processFiles();
+      await processor.localizeFiles();
       
       progress.report({ increment: 70, message: "Running flutter gen-l10n..." });
       await executeGenL10n();

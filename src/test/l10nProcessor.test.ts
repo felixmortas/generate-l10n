@@ -55,7 +55,7 @@ describe("L10nProcessor - Intégration", () => {
 
     // For localizeFiles (the batch mode)
     vi.spyOn(llm, 'chooseFileLanguage').mockResolvedValue("fr");
-    vi.spyOn(llm, 'processFiles').mockResolvedValue(
+    vi.spyOn(llm, 'localizeFiles').mockResolvedValue(
       `<JSON>{"welcome": "Bienvenue"}</JSON><dart>Text(AppLocalizations.of(context)!.welcome)</dart>`
     );
     vi.spyOn(llm, 'amendArb').mockResolvedValue(JSON.stringify({ "welcome": "Welcome" }));
@@ -67,7 +67,7 @@ describe("L10nProcessor - Intégration", () => {
   });
 
   it("should process a selected text (localizeSelectedText)", async () => {
-    const result = await processor.processSelectedText("'Abonnement activé.'");
+    const result = await processor.localizeSelectedText("'Abonnement activé.'");
 
     // 1. Check the return
     expect(result).toBe("AppLocalizations.of(context)!.subscriptionActivated");
@@ -82,7 +82,7 @@ describe("L10nProcessor - Intégration", () => {
   });
 
   it("should process an entire file (localizeFiles)", async () => {
-    await processor.processFiles();
+    await processor.localizeFiles();
 
     // 1. Check that the Dart file has been modified
     const dartContent = await fs.readFile(path.join(tempDir, "lib/email_page.dart"), "utf-8");
