@@ -4,6 +4,7 @@ import { isValidFlutterString, executeGenL10n, runWithProgress } from "./core/ut
 import { ConfigurationManager } from "./core/configurationManager.js";
 import { MyTreeDataProvider, FileNode } from "./views/l10nTreeView.js";
 import { L10nCodeActionProvider } from "./providers/l10nCodeActionProvider.js";
+import { TextLocalizationCommand } from './commands/textLocalization.js';
 
  /**
  * Activates the extension when VSCode loads it.
@@ -92,62 +93,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(localizeSelectedFiles);
 
-  /**
-   * Common logic for processing the selected text
-   */
-  async function handleSelectedText(executeGen: boolean) {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) { return; }
-
-    const selection = editor.selection;
-    const selectedText = editor.document.getText(selection);
-
-    if (!selectedText) {
-      vscode.window.showWarningMessage("No text selected.");
-      return;
-    }
-
-    if (!isValidFlutterString(selectedText)) {
-      vscode.window.showErrorMessage("Invalid selection: Please select a string with quotation marks (e.g., \"text\").");
-      return;
-    }
-
-    // Retrieval of configuration (identical to localizeSelectedFiles command)
-    const extConfig = await ConfigurationManager.getConfig();
-    if (!extConfig) { return; }
-
-    const processor = new L10nProcessor({
-      ...extConfig,
-      files: [], // Still not used for text-only processing
-    });
-
-    try {
-      await runWithProgress("Localizing selection...", async (progress) => {
-        // 1. Call to the processor
-        const replacement = await processor.processSelectedText(selectedText);
-
-        // 2. Replacement in the editor
-        await editor.edit(editBuilder => {
-          editBuilder.replace(selection, replacement);
-        });
-
-        // 3. Execution of flutter gen-l10n if requested
-        if (executeGen) {
-          progress.report({ message: "Running flutter gen-l10n..." });
-          await executeGenL10n();
-        }
-      });
-
-      vscode.window.showInformationMessage("Text localized successfully!");
-    } catch (err: any) {
-      vscode.window.showErrorMessage(`L10n Error: ${err.message}`);
-    }
-  }
-
   // Commands recording
   context.subscriptions.push(
-    vscode.commands.registerCommand('generateL10n.localizeText', () => handleSelectedText(false)),
-    vscode.commands.registerCommand('generateL10n.localizeTextAndGenerate', () => handleSelectedText(true))
+    vscode.commands.registerCommand('generateL10n.localizeText', () => TextLocalizationCommand.run(false)),
+    vscode.commands.registerCommand('generateL10n.localizeTextAndGenerate', () => TextLocalizationCommand.run(true))
   );
 
   // Registering a CodeActionProvider to display the light bulb (Quick Fix)
