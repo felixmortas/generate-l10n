@@ -138,7 +138,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     try {
-      // Étape 1: Démarrage du traitement
+      // Step 1: Starting process
       await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Processing localization files",
@@ -147,28 +147,28 @@ export function activate(context: vscode.ExtensionContext) {
         
         progress.report({ increment: 0, message: "Initializing..." });
         
-        // Étape 2: Traitement des fichiers ARB
+        // Step 2: Processing ARB files
         progress.report({ increment: 20, message: `Processing ${checked.length} file(s)...` });
         await modifier.processFiles();
         
         progress.report({ increment: 50, message: "Files processed successfully" });
         
-        // Attendre un court instant pour s'assurer que le traitement est complété
+        // Wait a short moment to ensure processing is completed
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Étape 3: Génération Flutter
+        // Step 3: Flutter generation
         progress.report({ increment: 70, message: "Running flutter gen-l10n..." });
         
         const terminal = vscode.window.createTerminal('Flutter L10n');
         terminal.show();
         terminal.sendText('flutter gen-l10n');
         
-        // Attendre que la commande Flutter soit exécutée
+        // Wait for the Flutter command to be executed
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         progress.report({ increment: 90, message: "Finalizing..." });
         
-        // Étape 4: Rafraîchissement et nettoyage
+        // Step 4: Refresh Tree View and cleanup
         treeDataProvider.refresh();
 
         // uncheck all files after processing
@@ -180,7 +180,7 @@ export function activate(context: vscode.ExtensionContext) {
         progress.report({ increment: 100, message: "Complete!" });
       });
 
-      // Notification finale de succès
+      // Final success notification
       vscode.window.showInformationMessage("Processing completed successfully 🎉");
       
     } catch (err: any) {
@@ -192,7 +192,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(localizeSelectedFiles);
 
   /**
-   * Logique commune pour le traitement du texte sélectionné
+   * Common logic for processing the selected text
    */
   async function handleSelectedText(executeGen: boolean) {
     const editor = vscode.window.activeTextEditor;
@@ -211,7 +211,7 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    // Récupération de la config (identique à votre commande localizeSelectedFiles)
+    // Retrieval of configuration (identical to localizeSelectedFiles command)
     const config = vscode.workspace.getConfiguration('generateL10n');
     const apiKey = config.get<string>('apiKey') ?? '';
     const provider = config.get<string>('provider') ?? 'mistral';
@@ -223,7 +223,7 @@ export function activate(context: vscode.ExtensionContext) {
       provider,
       model,
       arbsFolder,
-      files: [], // Non utilisé pour le texte seul
+      files: [], // Not used for text only
       apiKey,
       packageName,
     });
@@ -235,15 +235,15 @@ export function activate(context: vscode.ExtensionContext) {
         cancellable: false
       }, async (progress) => {
         
-        // 1. Appel au processeur (votre méthode processSelectedText)
+        // 1. Call to the processor (processSelectedText method)
         const replacement = await processor.processSelectedText(selectedText);
 
-        // 2. Remplacement du texte dans l'éditeur
+        // 2. Replacement of the text in the editor
         await editor.edit(editBuilder => {
           editBuilder.replace(selection, replacement);
         });
 
-        // 3. Exécution de flutter gen-l10n si demandé
+        // 3. Execution of flutter gen-l10n if requested
         if (executeGen) {
           progress.report({ message: "Running flutter gen-l10n..." });
           await executeGenL10n();
@@ -262,7 +262,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('generateL10n.localizeTextAndGenerate', () => handleSelectedText(true))
   );
 
-  // OPTIONNEL : Enregistrement d'un CodeActionProvider pour faire apparaître l'ampoule (Quick Fix)
+  // Registering a CodeActionProvider to display the light bulb (Quick Fix)
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider('dart', new L10nCodeActionProvider(), {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
@@ -459,7 +459,7 @@ class DirectoryNode {
 type TreeNode = FileNode | DirectoryNode;
 
 /**
- * Classe pour faire apparaître les options dans l'ampoule (Lightbulb)
+ * Class to display options in the lightbulb (Quick Fix) when text is selected.
  */
 class L10nCodeActionProvider implements vscode.CodeActionProvider {
   provideCodeActions(document: vscode.TextDocument, range: vscode.Range): vscode.CodeAction[] {

@@ -149,6 +149,6 @@ export async function executeGenL10n(): Promise<void> {
     terminal.show();
     terminal.sendText('flutter gen-l10n');
     
-    // On retourne une promesse qui attend un peu pour laisser la commande démarrer
+    // We return a promise that waits a little while to let the command start.
     return new Promise(resolve => setTimeout(resolve, 2000));
 }

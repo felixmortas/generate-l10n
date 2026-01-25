@@ -172,9 +172,9 @@ export class LLM {
   }
 
 /**
-   * Détecte la langue d'un texte sélectionné parmi les langues disponibles.
-   * @param text Le texte brut sélectionné.
-   * @param langs Liste des tags de langue disponibles (ex: ["fr", "en"]).
+   * Detects the language of a selected text among the available languages.
+   * @param text The raw selected text.
+   * @param langs List of available language tags (e.g., ["fr", "en"]).
    */
   public async detectTextLanguage(text: string, langs: string[]): Promise<{ lang_tag: string }> {
     const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('detectTextLanguage');
@@ -196,11 +196,11 @@ export class LLM {
   }
 
   /**
-   * Cherche si le texte existe déjà dans le fichier ARB source ou génère les traductions
-   * et une clé appropriée pour tous les fichiers ARB.
-   * @param text Le texte à internationaliser.
-   * @param sourceArbContent Contenu JSON du fichier ARB de la langue source.
-   * @param langs Liste de toutes les langues du projet.
+   * Check if the text already exists in the source ARB file or generate the translations
+   * and an appropriate key for all ARB files.
+   * @param text The text to be internationalized.
+   * @param sourceArbContent JSON content of the source language ARB file.
+   * @param langs List of all languages in the project.
    */
   public async findOrTranslateKey(
     text: string, 
@@ -229,11 +229,11 @@ export class LLM {
   }
 
   /**
-   * Nettoie la réponse du LLM pour extraire uniquement le JSON,
-   * même s'il est entouré de blocs de code Markdown.
+   * Cleans the LLM response to extract only the JSON,
+   * even if it is surrounded by Markdown code blocks.
    */
   private _extractJson(rawResponse: string): string {
-    // Supprime les blocs de code Markdown (```json ... ``` ou ``` ... ```)
+    // Removes Markdown code blocks (```json ... ``` or ``` ... ```)
     const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     const candidate = jsonMatch ? jsonMatch[1] : rawResponse;
     

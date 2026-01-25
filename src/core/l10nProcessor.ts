@@ -190,24 +190,22 @@ export class L10nProcessor {
   public async processSelectedText(selectedText: string): Promise<string> {
     const { arbsFolder } = this.opts;
 
-    // 0. Validation : Le texte doit être entouré de quotes (règle métier)
-    // Fonction utilitaire à créer : vérifie si le texte est une String Dart valide
+    // 0. Validation : The text must be enclosed in quotation marks (business rule).
     if (!isValidFlutterString(selectedText)) {
       throw new Error("Invalid selection: Please select a quoted string (e.g., 'text' or \"text\").");
     }
 
-    // Nettoyage des quotes pour l'envoi au LLM
+    // Clean quotes for sending to LLM
     const cleanText = selectedText.replace(/^["']|["']$/g, "");
 
-    // 1. Récupérer les langues disponibles depuis les fichiers .arb
-    // Fonction utilitaire à créer : scanne le dossier et retourne ["fr", "en", "es"]
+    // 1. Retrieve available languages from .arb files
     const langs = await getAvailableLangs(arbsFolder);
 
-    // 2. Détecter la langue du texte sélectionné
+    // 2. DDetect the language of the selected text
     const langResponse = await this.llm.detectTextLanguage(cleanText, langs);
     const sourceLang = langResponse.lang_tag;
 
-    // 3. Lire le contenu du fichier ARB de la langue source
+    // 3. Read the content of the source language ARB file
     const sourceArbPath = path.join(arbsFolder, `app_${sourceLang}.arb`);
     let sourceArbContent = "{}";
     try {
@@ -216,22 +214,21 @@ export class L10nProcessor {
       console.warn(`Source ARB file ${sourceLang} not found, using empty object.`);
     }
 
-    // 4. Rechercher la clé existante ou générer les traductions via LLM
+    // 4. Search for existing key or generate translations via LLM
     const l10nData = await this.llm.findOrTranslateKey(cleanText, sourceArbContent, langs);
 
-    // 5. Si la clé n'existe pas déjà, mettre à jour tous les fichiers ARB
+    // 5. If the key does not already exist, update all ARB files.
     if (!l10nData.found) {
       for (const lang of langs) {
         const translation = l10nData[lang];
         if (translation) {
           const arbPath = path.join(arbsFolder, `app_${lang}.arb`);
-          // Fonction utilitaire à créer : fusionne et écrit de façon atomique
           await updateArbFiles(arbPath, l10nData.key, translation);
         }
       }
     }
 
-    // 6. Retourner la chaîne de remplacement Flutter
+    // 6. Return the Flutter replacement string
     return `AppLocalizations.of(context)!.${l10nData.key}`;
   }
 }
