@@ -207,7 +207,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     if (!isValidFlutterString(selectedText)) {
-      vscode.window.showErrorMessage("Sélection invalide : Veuillez sélectionner une String entre quotes (ex: 'texte').");
+      vscode.window.showErrorMessage("Invalid selection: Please select a string with quotation marks (e.g., \"text\").");
       return;
     }
 
