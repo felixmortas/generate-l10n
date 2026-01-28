@@ -1,4 +1,6 @@
-Here is the document to be analyzed:
-<flutter_file>
+# Input Data
+List of allowed tags: {langs}
+Flutter Source Code:
+```dart
 {doc}
-</flutter_file>
+```

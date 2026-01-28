@@ -1,7 +1,6 @@
-Traduis intégralement les **valeurs** du fichier JSON suivant dans la langue spécifiée par "lang_tag", tout en conservant toutes les clefs inchangées.
-
-lang_tag : {lang_tag}
-
-<json>
+# Input Data
+Target language: {lang_tag}
+JSON to translate:
+```json
 {input}
-</json>
+```

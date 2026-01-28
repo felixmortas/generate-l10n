@@ -1,5 +1,12 @@
-Texte à traiter : "{text}"
-Contenu ARB source : {source_arb}
-Langues demandées : {langs}
+# Input
+Text to process: 
+```text
+{text}
+```
 
-Analyse et génère le JSON après la balise.
+Source ARB content: 
+```json
+{source_arb}
+```
+
+Languages requested: {langs}

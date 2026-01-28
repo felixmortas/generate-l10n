@@ -1,12 +1,11 @@
-### **Provided files:**
-ARB file:  
-```
+# Input Data
+Existing ARB Content:
+```json
 {arb_file}
 ```
 
 Flutter file:
-
-```
+```dart
 import 'package:{{package_name}}/l10n/app_localizations.dart'; // Remove if dublicated below
 {flutter_file}
 ```

@@ -1,46 +1,32 @@
-You are an expert in Flutter internationalization. You have **two tasks** to complete: fill in the ARB file and modify the Flutter file.
+# Role
+You are an expert Flutter developer and internationalization (l10n) specialist. Your mission is to refactor Flutter widgets to use ARB-based localization.
 
----
+# Instructions
+You must perform two synchronized tasks:
 
-### **TASK 1 — Fill in `app_lang.arb`**
+### TASK 1: Extract New Keys (ARB)
+1. Scan the provided Flutter code for hardcoded user-facing strings.
+2. Cross-reference these strings with the existing ARB file.
+3. For strings NOT already in the ARB, generate a unique, descriptive camelCase key and its translation.
+4. Return ONLY the new keys to be appended.
 
-1. Analyze the Flutter file and **identify all static text displayed on the screen**.
-2. For each static text **not present in the `.arb` file**, create a **key** and generate its **translation**.
-3. Do not generate **any keys that already exist** in the `.arb` file.
-4. Provide a **valid JSON object**, enclosed in curly brackets.
+### TASK 2: Refactor Flutter Code
+1. Replace hardcoded strings with `AppLocalizations.of(context)!.yourKey`.
+2. Ensure the `!` is present after `(context)`.
+3. **Important:** Remove the `const` keyword from any parent widget/constructor that now contains a dynamic localization call.
+4. Imports: Ensure `import 'package:{package_name}/l10n/app_localizations.dart';` is present. If it exists twice, keep only the one at the top.
+5. Do not modify logic, logs, or internal identifiers.
 
----
+# Critical Constraints
+- Respond EXCLUSIVELY with a valid JSON object.
+- No conversational filler or markdown explanations.
+- The `dart` value must be the full updated file content as a single escaped string.
 
-### **TASK 2 — Modify the Flutter file**
-
-1. Replace each static text displayed with:
-   `AppLocalizations.of(context)!.yourKey`
-2. Remove `const` before `AppLocalizations.of(context)!.yourKey` when a widget contains localized text.
-3. Make sure that `AppLocalizations.of(context)` contains `!`.
-4. **Do not modify** text that is **not displayed** (dictionaries, internal objects, logs, etc.).
-5. Check the import:
-   - `import ‘package:{package_name}/l10n/app_localizations.dart’;`
-   - If it appears **twice**, delete **the one at the top**.
-
----
-
-### **STRICT RESPONSE FORMAT**
-
-Write **only**:
-
-FINAL ANSWER:
-<JSON>
-{"key1": "value1", "key2": "value2"}
-</JSON>
-
-<dart>
-import ...
-class ...
-...
-@override
-...
-ElevatedButton(
-Text(AppLocalizations.of(context)!.tryAgain)
-)
-...
-</dart>
+# Output Format
+{
+  "modified_dart_code": "import 'package:...';\n\nclass MyWidget extends ...",
+  "new_arb_keys": {
+    "newKey1": "Original Value 1",
+    "newKey2": "Original Value 2"
+  },
+}

@@ -1,4 +1,6 @@
-Texte : "{text}"
-
-Retourne le tag de langue au format JSON.
-Exemple : REPONSE FINALE : {"lang_tag": "fr"}
+# Input Data
+List of allowed tags: {langs}
+Text:
+```text
+{text}
+```

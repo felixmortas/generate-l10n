@@ -1,242 +1,232 @@
 /**
  * LLM Wrapper
  *
- * Provides a unified abstraction for interacting with different LLM providers:
- * - Mistral (@langchain/mistralai)
- * - OpenAI (@langchain/openai)
- * - Google Generative AI (@langchain/google-genai)
+ * Provides a unified abstraction for interacting with different LLM providers
+ * using direct REST API calls via fetch():
+ * - Mistral (https://api.mistral.ai)
+ * - OpenAI (https://api.openai.com)
+ * - Google Generative AI (https://generativelanguage.googleapis.com)
  *
  * Responsibilities:
- * - Initializes the chosen provider/model.
- * - Loads prompt templates from disk (`prompts/` folder).
- * - Invokes the LLM with system + human messages.
- * - Extracts and returns structured outputs (marked by `REPONSE FINALE :`).
+ * - Direct HTTP communication with LLM providers.
+ * - Forcing JSON output format via provider-specific API parameters.
+ * - Loading prompt templates from disk.
+ * - Parsing structured JSON responses without fragile string delimiters.
  */
 
-import 'dotenv/config'; // Load environment variables from .env into process.env
-import { readFile } from 'fs/promises'; // Async file reads
+import 'dotenv/config';
+import { readFile } from 'fs/promises';
 import path from 'path';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { ChatMistralAI } from '@langchain/mistralai';
-import { ChatOpenAI } from '@langchain/openai';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { fileURLToPath } from 'url';
 
 export class LLM {
-  /** Which provider to use: "mistral", "openai", "google". */
   provider: string;
-
-  /** Model name to use (depends on provider). */
   model: string;
-
-  /** Underlying LangChain chat model instance. */
-  llm: any;
-
-  /** API key to use (depends on provider). */
   apiKey: string;
 
-
-  /**
-   * Constructs a new LLM instance.
-   * @param provider - LLM backend (mistral, openai, google).
-   * @param model - Model name or ID.
-   */
   constructor(provider: string, model: string, apiKey: string) {
     this.provider = provider;
     this.model = model;
     this.apiKey = apiKey;
-    this.llm = this._initLLM();
   }
 
   /**
-   * Internal: Initializes the correct LangChain wrapper
-   * depending on the provider.
+   * Internal helper to make POST requests to different providers.
+   * Centralizes headers and JSON configuration.
    */
-  private _initLLM() {
-    console.debug(`[DEBUG] ${this.provider} LLM initialization with model ${this.model}`);
+  private async _post(messages: { role: string; content: string }[]): Promise<any> {
+    let url = '';
+    let body: any = {};
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
 
-    if (this.provider === 'mistral') {
-      // Requires MISTRAL_API_KEY in environment
-      return new ChatMistralAI({ apiKey: this.apiKey, model: this.model, temperature: 0, maxRetries: 5 });
-    } else if (this.provider === 'openai') {
-      // Requires OPENAI_API_KEY in environment
-      return new ChatOpenAI({ apiKey: this.apiKey, model: this.model, temperature: 0 });
-    } else if (this.provider === 'google') {
-      // Requires GOOGLE_API_KEY in environment
-      return new ChatGoogleGenerativeAI({ apiKey: this.apiKey, model: this.model, temperature: 0 });
-    } else {
-      throw new Error(`Unknown provider: ${this.provider}`);
+    switch (this.provider) {
+      case 'openai':
+        url = 'https://api.openai.com/v1/chat/completions';
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+        body = {
+          model: this.model,
+          messages,
+          response_format: { type: "json_object" }, // Forces JSON mode
+          temperature: 0,
+        };
+        break;
+
+      case 'mistral':
+        url = 'https://api.mistral.ai/v1/chat/completions';
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+        body = {
+          model: this.model,
+          messages,
+          response_format: { type: "json_object" }, // Forces JSON mode
+          temperature: 0,
+        };
+        break;
+
+      case 'google':
+        // Google uses API key in the URL
+        url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+        body = {
+          contents: messages.map(m => ({
+            role: m.role === 'system' ? 'user' : m.role, // Gemini handles system prompts differently or as user roles in simple API
+            parts: [{ text: m.content }]
+          })),
+          generationConfig: {
+            response_mime_type: "application/json", // Forces JSON mode
+            temperature: 0,
+          }
+        };
+        break;
+
+      default:
+        throw new Error(`Unsupported provider: ${this.provider}`);
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`LLM API Error (${this.provider}): ${response.statusText} - ${errorData}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Generic invocation that forces JSON parsing.
+   * Note: The system prompt should explicitly ask for a JSON schema.
+   */
+  private async _invoke(sysPrompt: string, humPrompt: string): Promise<any> {
+    const messages = [
+      { role: 'system', content: sysPrompt },
+      { role: 'user', content: humPrompt },
+    ];
+
+    const rawData = await this._post(messages);
+    const content = this._extractContent(rawData);
+
+    const cleaned = this._sanitizeJsonString(content);
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (e) {
+      console.error("[ERROR] Failed to parse LLM response as JSON. Raw content:", content);
+      throw new Error("Invalid JSON returned by LLM");
     }
   }
 
   /**
-   * Loads a system + human prompt pair from the `prompts/` folder.
-   * @param name - Base name of the prompt files.
-   *   - Loads `{name}.sys` (system message).
-   *   - Loads `{name}.hum` (human message).
+   * Extracts the string content from the various API response structures.
    */
+  private _extractContent(data: any): string {
+    if (this.provider === 'google') {
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+    // OpenAI and Mistral share the same format
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  private _sanitizeJsonString(raw: string): string {
+    return raw
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
+  }
+
   private async _loadPrompt(name: string): Promise<[string, string]> {
-    // Résolution du chemin absolu vers prompts dans dist
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const promptsDir = path.join(__dirname, 'prompts');
 
-    const sysPath = path.join(promptsDir, `${name}.sys`);
-    const humPath = path.join(promptsDir, `${name}.hum`);
-
     try {
       const [sysPrompt, humPrompt] = await Promise.all([
-        readFile(sysPath, { encoding: 'utf8' }),
-        readFile(humPath, { encoding: 'utf8' }),
+        readFile(path.join(promptsDir, `${name}.sys`), 'utf8'),
+        readFile(path.join(promptsDir, `${name}.hum`), 'utf8'),
       ]);
       return [sysPrompt, humPrompt];
     } catch {
-      throw new Error(`Missing prompt ${name}: ${sysPath} or ${humPath}`);
+      throw new Error(`Missing prompt files for ${name}`);
     }
   }
 
+  
+  /** PUBLIC METHODS */
 
   /**
-   * Sends system + human prompts to the LLM and returns the response.
+   * Produces a translated ARB file for a target language.
    */
-  private async _invoke(sysPrompt: string, humPrompt: string): Promise<string> {
-    console.debug('[DEBUG] Calling LLM...');
-    const messages = [
-      new SystemMessage({ content: sysPrompt }),
-      new HumanMessage({ content: humPrompt }),
-    ];
+  async amendArb(inputJson: string, langTag: string): Promise<Record<string, string>> {
+    const [sysPrompt, humTemplate] = await this._loadPrompt('amendArb');
+    const humPrompt = humTemplate
+      .replace('{lang_tag}', langTag)
+      .replace('{input}', inputJson);
 
-    const response = await this.llm.invoke(messages);
-    return (response?.content ?? '').trim();
+    return await this._invoke(sysPrompt, humPrompt);
   }
 
   /**
    * Determines the language tag of a Flutter file.
-   * @param doc - Flutter source code.
-   * @param langs - Candidate languages detected from ARB files.
-   * @returns Chosen language tag.
    */
   async chooseFileLanguage(doc: string, langs: string[]): Promise<string> {
-    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('chooseFileLanguage');
-    const sysPrompt = sysPromptTemplate.replace('{langs}', langs.join(', '));
-    const humPrompt = humPromptTemplate.replace('{doc}', doc);
+    const [sysPrompt, humTemplate] = await this._loadPrompt('chooseFileLanguage');
+    const humPrompt = humTemplate
+      .replace('{doc}', doc)
+      .replace('{langs}', langs.join(', '));
 
-    const response = await this._invoke(sysPrompt, humPrompt);
-
-    const parts = response.split('REPONSE FINALE :');
-    if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
-
-    return parts[1].trim();
+    // Expecting JSON: { "language": "en" }
+    const result = await this._invoke(sysPrompt, humPrompt);
+    console.info(`[DEBUG] chooseFileLanguage result: ${JSON.stringify(result)}`);
+    console.info(`[DEBUG] results type: ${typeof result}, keys: ${Object.keys(result).join(', ')}`);
+    console.info(`[DEBUG] detected language: ${result.lang_tag}`);
+    return result.lang_tag;
   }
 
   /**
-   * Processes a Flutter file and ARB file together.
-   * Extracts localization keys and potentially updates the Flutter code.
-   * @param flutterFile - Flutter source code as string.
-   * @param arbFile - Current ARB JSON content.
-   * @param lang - Source language tag.
-   * @returns String containing JSON (keys) + updated Flutter code.
-   */
-  async localizeFiles(flutterFile: string, arbFile: string, lang: string, packageName: string): Promise<string> {
-    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('localizeFiles');
-    const humPrompt = humPromptTemplate
-      .replace('{arb_file}', arbFile)
-      .replace('{flutter_file}', flutterFile)
-      .replace('{lang}', lang)
-      .replace('{package_name}', packageName);
-
-    const response = await this._invoke(sysPromptTemplate, humPrompt);
-
-    const parts = response.split('REPONSE FINALE :');
-    if (parts.length < 2) throw new Error(`Response shape not valid: ${response}`);
-    return parts[1].trim();
-  }
-
-  /**
-   * Produces a translated ARB file for a target language.
-   * @param inputJson - JSON string with source keys.
-   * @param langTag - Target language code.
-   * @returns Translated JSON string.
-   */
-  async amendArb(inputJson: string, langTag: string): Promise<string> {
-    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('amendArb');
-    const humPrompt = humPromptTemplate
-      .replace('{lang_tag}', langTag)
-      .replace('{input}', inputJson);
-
-    const response = await this._invoke(sysPromptTemplate, humPrompt);
-
-    const parts = response.split('REPONSE FINALE :');
-    if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
-    return parts.slice(-1)[0].trim();
-  }
-
-/**
-   * Detects the language of a selected text among the available languages.
-   * @param text The raw selected text.
-   * @param langs List of available language tags (e.g., ["fr", "en"]).
+   * Detects the language of a selected text.
    */
   public async detectTextLanguage(text: string, langs: string[]): Promise<{ lang_tag: string }> {
-    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('detectTextLanguage');
-    
-    const sysPrompt = sysPromptTemplate.replace('{langs}', langs.join(', '));
-    const humPrompt = humPromptTemplate.replace('{text}', text);
+    const [sysPrompt, humTemplate] = await this._loadPrompt('detectTextLanguage');
+    const humPrompt = humTemplate
+      .replace('{text}', text)
+      .replace('{langs}', langs.join(', '));
 
-    const response = await this._invoke(sysPrompt, humPrompt);
-
-    const parts = response.split('REPONSE FINALE :');
-    if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
-
-    try {
-      const cleanJson = this._extractJson(parts[1]); // Utilisation du nettoyeur
-      return JSON.parse(cleanJson);
-    } catch (e) {
-      throw new Error(`Failed to parse LLM JSON response: ${parts[1]}`);
-    }
+    return await this._invoke(sysPrompt, humPrompt);
   }
 
   /**
-   * Check if the text already exists in the source ARB file or generate the translations
-   * and an appropriate key for all ARB files.
-   * @param text The text to be internationalized.
-   * @param sourceArbContent JSON content of the source language ARB file.
-   * @param langs List of all languages in the project.
+   * Check if text exists or needs translation.
    */
   public async findOrTranslateKey(
     text: string, 
     sourceArbContent: string, 
     langs: string[]
   ): Promise<{ found: boolean; key: string; [lang: string]: any }> {
-    const [sysPromptTemplate, humPromptTemplate] = await this._loadPrompt('findOrTranslateKey');
-    
-    const sysPrompt = sysPromptTemplate;
-    const humPrompt = humPromptTemplate
+    const [sysPrompt, humTemplate] = await this._loadPrompt('findOrTranslateKey');
+    const humPrompt = humTemplate
       .replace('{text}', text)
       .replace('{source_arb}', sourceArbContent)
       .replace('{langs}', langs.join(', '));
 
-    const response = await this._invoke(sysPrompt, humPrompt);
-
-    const parts = response.split('REPONSE FINALE :');
-    if (parts.length < 2) throw new Error(`LLM response not valid: ${response}`);
-
-    try {
-      const cleanJson = this._extractJson(parts[1]); // Utilisation du nettoyeur
-      return JSON.parse(cleanJson);
-    } catch (e) {
-      throw new Error(`Failed to parse LLM JSON response for translation: ${parts[1]}`);
-    }
+    return await this._invoke(sysPrompt, humPrompt);
   }
 
   /**
-   * Cleans the LLM response to extract only the JSON,
-   * even if it is surrounded by Markdown code blocks.
+   * Processes a Flutter file and ARB file together.
    */
-  private _extractJson(rawResponse: string): string {
-    // Removes Markdown code blocks (```json ... ``` or ``` ... ```)
-    const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    const candidate = jsonMatch ? jsonMatch[1] : rawResponse;
-    
-    return candidate.trim();
+  async localizeFiles(flutterFile: string, arbFile: string, lang: string, packageName: string): Promise<any> {
+    const [sysPrompt, humTemplate] = await this._loadPrompt('localizeFiles');
+    const humPrompt = humTemplate
+      .replace('{arb_file}', arbFile)
+      .replace('{flutter_file}', flutterFile)
+      .replace('{lang}', lang)
+      .replace('{package_name}', packageName);
+
+    // This returns the full JSON object directly
+    return await this._invoke(sysPrompt, humPrompt);
   }
 }

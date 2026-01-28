@@ -55,10 +55,14 @@ describe("L10nProcessor - Intégration", () => {
 
     // For localizeFiles (the batch mode)
     vi.spyOn(llm, 'chooseFileLanguage').mockResolvedValue("fr");
-    vi.spyOn(llm, 'localizeFiles').mockResolvedValue(
-      `<JSON>{"welcome": "Bienvenue"}</JSON><dart>Text(AppLocalizations.of(context)!.welcome)</dart>`
-    );
-    vi.spyOn(llm, 'amendArb').mockResolvedValue(JSON.stringify({ "welcome": "Welcome" }));
+    vi.spyOn(llm, 'localizeFiles').mockResolvedValue({
+      new_arb_keys: { "welcome": "Bienvenue" },
+      modified_dart_code: "const Text(AppLocalizations.of(context)!.welcome);"
+    });
+    vi.spyOn(llm, 'amendArb').mockResolvedValue(JSON.stringify({ 
+      "@@locale": "en",
+      "welcome": "Welcome" 
+    }));
   });
 
   afterEach(async () => {

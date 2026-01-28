@@ -70,6 +70,7 @@ export class L10nProcessor {
     const langProof = await fs.readFile(firstFlutterFile, "utf8");
     console.info("[INFO] Language detection...");
     const langTagRaw = await this.llm.chooseFileLanguage(langProof, langs);
+    console.info(`[INFO] LangTagRaw: ${langTagRaw}`);
     const langTag = Array.from(langTagRaw)
       .filter((c) => /[a-zA-Z0-9_-]/.test(c))
       .join("");
@@ -109,23 +110,13 @@ export class L10nProcessor {
         packageName,
       );
 
-      // Cleanup model output (strip tags)
-      let striped = finalResponse
-        .trim()
-        .replace(/<JSON>/g, "")
-        .replace(/<\/JSON>/g, "")
-        .replace(/<\/dart>/g, "");
-
-      // Split response into ARB content and Flutter code
-      const parts = striped.split("<dart>");
-      const arbLines = parts[0].trim();
-      const updatedFlutter = (parts[1] || "").trim();
-
-      console.debug(`[DEBUG] ARB lines created: ${arbLines.slice(0, 200)}`);
-
       // Merge ARB entries progressively
-      const parsed = JSON.parse(arbLines || "{}");
-      fullArbLines = { ...fullArbLines, ...parsed };
+      const parsedArb = finalResponse.new_arb_keys || {};
+      console.debug(`[DEBUG] ARB lines created: ${JSON.stringify(parsedArb).slice(0, 200)}`);
+
+      const updatedFlutter = finalResponse.modified_dart_code || "";
+
+      fullArbLines = { ...fullArbLines, ...parsedArb };
 
       // Safely update ARB file (merge with existing keys)
       const fullArbJson = JSON.stringify(fullArbLines, null, 2);
@@ -171,7 +162,7 @@ export class L10nProcessor {
       }
 
       // Safely merge and write translation
-      const newArbContent = mergeJsonStrings(existing, translated);
+      const newArbContent = mergeJsonStrings(existing, JSON.stringify(translated));
       await atomicWrite(arbFile, newArbContent, backup);
     }
   }
