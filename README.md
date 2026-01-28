@@ -28,21 +28,21 @@
 
 ## Overview
 
-`generate-l10n` is a VSCode extension designed to simplify and automate the localization process for **Dart/Flutter projects**.
-It leverages **LLM models** (like Mistral, OpenAI, Google) to update `.dart` files and amend `.arb` localization files.
+`generate-l10n` is a VSCode extension designed to simplify the localization process for **Dart/Flutter projects**.
+By leveraging **LLM models** (Mistral, OpenAI, Google), it automates the tedious task of extracting strings to `.arb` files and updating `.dart` code with the correct localization keys.
 
-The extension provides an interactive **tree view**, file selection, and direct integration with the `flutter gen-l10n` command.
+Whether you want to process **entire files** or just a **specific snippet of text**, the extension handles the context, key generation, and translation for you.
 
 ---
 
 ## Features
 
-* Interactive **tree view** of Dart files under `/lib`.
-* Check/uncheck files to include in the localization process.
-* Input **API key** for LLM provider.
-* Supports multiple **LLM providers** and all their models.
-* Automatically executes `flutter gen-l10n` after processing.
-* Full **VSCode native UI integration** (activity bar, command palette, tree view).
+* **Smart Selection (New!):** Highlight text in a Dart file and use "Quick Fix" (lightbulb) to localize it instantly.
+* **Contextual Intelligence:** The AI detects the source language and checks existing `.arb` files to reuse existing keys or create new ones consistently.
+* **Batch Processing:** Interactive **tree view** to select and process multiple files at once.
+* **Multi-Provider:** Support for Mistral, OpenAI, and Google Gemini models.
+* **Automated Workflow:** Optionally executes `flutter gen-l10n` immediately after modification.
+* **Native Integration:** Seamlessly integrated into the VSCode Activity Bar and Command Palette.
 
 ---
 
@@ -60,30 +60,31 @@ The extension provides an interactive **tree view**, file selection, and direct 
 
 ## Usage
 
-1. Open a Flutter/Dart project in VSCode.
-2. Click the **L10n Generator** icon in the activity bar.
-3. Expand the `/lib` folder tree to locate Dart files.
-4. Check the files you want to process.
-5. Press the **Play ▶** button or run the command `Process Selected Files` from the command palette.
-6. The extension will:
+### 1. Localize Selected Text (Quick Action)
 
-   * Use the configured LLM to modify Dart/ARB files.
-   * Execute `flutter gen-l10n` in a terminal.
-   * Notify you upon success or failure.
+* Highlight a string in your `.dart` file.
+* Click the **Lightbulb 💡** icon, right-click or press `Cmd+.` / `Ctrl+.`.
+* Select **"auto-l10n"** (replaces text with key) or **"auto-l10n & execute"** (replaces text + runs flutter gen-l10n).
+* The AI will automatically update all your `.arb` files with the translated values.
+
+### 2. Localize Entire Files (Batch)
+
+* Click the **L10n Generator** icon in the activity bar.
+* Expand the `/lib` folder tree and **check** the files you want to process.
+* Press the **Play ▶** button.
+* The extension will refactor the files to use `AppLocalizations`.
 
 ---
 
 ## Configuration
 
-Configure the extension via **Settings** or the `configureExtension` command:
-
-| Setting                    | Type    | Default                  | Description                                                    |
-| -------------------------- | ------- | ------------------------ | -------------------------------------------------------------- |
-| `generateL10n.provider`    | string  | `"mistral"`              | LLM provider to use (`openai`, `mistral`, `google`)            |
-| `generateL10n.apiKey`      | string  | `""`                     | API key for the selected provider                              |
-| `generateL10n.model`       | string  | `"mistral-large-latest"` | LLM model used for processing                                  |
-| `generateL10n.backup`      | boolean | `false`                  | Create backup files before modifying ARB and Flutter files     |
-| `generateL10n.packageName` | string  | `""`                     | Flutter project package name (auto-detected from pubspec.yaml) |
+| Setting | Type | Default | Description |
+| --- | --- | --- | --- |
+| `generateL10n.provider` | string | `"mistral"` | LLM provider (`openai`, `mistral`, `google`) |
+| `generateL10n.apiKey` | string | `""` | API key for the selected provider |
+| `generateL10n.model` | string | `"mistral-large-latest"` | LLM model used for processing |
+| `generateL10n.backup` | boolean | `false` | Create backup files before modifying code |
+| `generateL10n.packageName` | string | `""` | Flutter project name (auto-detected) |
 
 > **Note:** The API key is required for the extension to function.
 
@@ -97,38 +98,30 @@ You can manually re-detect the project name emptying it in the config tab.
 
 ---
 
-## Commands
+## Commands & UI
 
-The extension registers the following commands:
+### Command Palette (`Ctrl+Shift+P`)
 
-| Command                             | Description                                                       |
-| ----------------------------------- | ----------------------------------------------------------------- |
-| `generateL10n.toggleCheck`          | Toggle check state of a file in the tree view.                    |
-| `generateL10n.processSelectedFiles` | Process all checked files using the configured AI provider/model. |
-| `generateL10n.configureExtension`   | Open extension settings for configuration.                        |
-| `generateL10n.refreshView`          | Refresh the tree view to reflect changes in the file system.      |
+* `Process Selected Files`: Starts batch localization.
+* `Configure Extension`: Quick access to settings.
+* `Refresh View`: Updates the file tree structure.
 
-> All commands are accessible via the **Command Palette** (`Ctrl+Shift+P` / `Cmd+Shift+P`).
+### Tree View
 
----
-
-## Tree View
-
-* Displays the `/lib` folder hierarchy.
-* Directories appear collapsible; Dart files are checkable.
-* Checked files are included in LLM processing.
-* NOT automatically refreshes when files are added or removed. Please remember to press the refresh button.
-* Excludes: `node_modules`, `.git`, `/lib/l10n`.
+* Displays your `/lib` hierarchy (excluding `l10n` folder and non-Dart files).
+* Provides a visual way to manage bulk localization tasks.
 
 ---
 
 ## Technical Details
 
-* Written in **TypeScript** for VSCode extension API.
-* Uses the `langgraph` library for Dart/ARB file processing using LLM.
-* Interacts with **LLMs** via provider APIs.
-* Launches **Flutter commands** in a VSCode terminal.
-* Fully modular: tree view, commands, and file processing separated for maintainability.
+The extension follows a modular **Object-Oriented Programming (OOP)** architecture for high maintainability:
+
+* **Core Logic:** Separated into `L10nProcessor` for file handling and `LLMService` for AI logic.
+* **REST Integration:** Migrated to a clean Fetch API implementation for LLM requests with strict JSON output parsing.
+* **Providers:** Uses `CodeActionProvider` to inject localization commands directly into the VSCode editor UI.
+* **Robust Parsing:** Handles LLM responses with built-in sanitization (markdown block removal, JSON validation).
+* **Automation:** Built-in utility to trigger `flutter gen-l10n` via the VSCode Terminal API.
 
 ---
 
@@ -138,6 +131,9 @@ The extension registers the following commands:
 * **Missing API key**: Set it via Settings (`generateL10n.apiKey`) or `Configure Extension` command.
 * **No files checked**: Ensure you select at least one Dart file.
 * **Flutter gen-l10n fails**: Verify Flutter SDK is installed and added to PATH.
+* **Language Detection:** If the AI misidentifies the source language, ensure your existing `.arb` files follow the standard naming convention (e.g., `app_en.arb`, `app_fr.arb`).
+* **Terminal Errors:** If `flutter gen-l10n` fails, ensure Flutter is in your system `PATH` and your `l10n.yaml` is correctly configured.
+* **API Limits:** Check your LLM provider dashboard if you receive empty responses or "429 Too Many Requests" errors.
 
 ---
 
@@ -145,13 +141,13 @@ The extension registers the following commands:
 
 Contributions are welcome!
 
-* Fork the repository.
-* Implement changes in `src/`.
-* Test using `npm run test`.
-* Submit a Pull Request with detailed description.
+1. Fork the repository.
+2. Install dependencies: `npm install`.
+3. Run tests: `npm run test:unit`.
+4. Submit a PR describing your changes (logic refactoring, new providers, etc.).
 
 ---
 
 ## License
 
-MIT License © 2025
+MIT License © 2026
