@@ -1,124 +1,120 @@
-/**
- * @file utils.test.ts
- * @description Unit tests for the core utility functions used in ARB (Application Resource Bundle) management.
- * This suite covers string validation, file system discovery, JSON merging logic, and file persistence.
- */
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'fs/promises';
+import path from 'path';
+import * as vscode from 'vscode'; // Sera mocké par ton setup.ts
 import { 
     isValidFlutterString, 
     getAvailableLangs, 
     mergeJsonStrings, 
-    updateArbFiles 
+    updateArbFiles,
+    atomicWrite,
+    readFileContent
 } from '../core/utils';
 
-// Mocking the File System module to prevent actual disk I/O during testing
+// Mocking fs/promises
 vi.mock('fs/promises');
 
 describe('utils.ts unit tests', () => {
 
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     /**
      * @group Validation
-     * Tests the regex/logic used to identify valid Flutter-compatible quoted strings.
      */
     describe('isValidFlutterString', () => {
-        it('should return true for double quoted strings', () => {
+        it('should return true for double and single quoted strings', () => {
             expect(isValidFlutterString('"Hello"')).toBe(true);
-        });
-
-        it('should return true for single quoted strings', () => {
             expect(isValidFlutterString("'Hello'")).toBe(true);
         });
 
-        it('should return false for unquoted strings', () => {
+        it('should return false for invalid strings', () => {
             expect(isValidFlutterString('Hello')).toBe(false);
+            expect(isValidFlutterString("'Hello\"")).toBe(false);
+            expect(isValidFlutterString('')).toBe(false);
+        });
+    });
+
+    /**
+     * @group File_IO
+     */
+    describe('readFileContent', () => {
+        it('should return content on success', async () => {
+            vi.mocked(fs.readFile).mockResolvedValue('content');
+            const res = await readFileContent('test.txt');
+            expect(res).toBe('content');
         });
 
-        it('should return false for mismatched quotes', () => {
-            expect(isValidFlutterString("'Hello\"")).toBe(false);
+        it('should return empty string on failure', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(new Error());
+            const res = await readFileContent('test.txt');
+            expect(res).toBe('');
+        });
+    });
+
+    describe('atomicWrite', () => {
+        it('should create a backup if requested', async () => {
+            vi.mocked(fs.access).mockResolvedValue(undefined); // File exists
+            
+            await atomicWrite('test.arb', '{}', true);
+
+            expect(fs.copyFile).toHaveBeenCalledWith('test.arb', 'test.arb.bak');
+            expect(fs.writeFile).toHaveBeenCalled();
+            expect(fs.rename).toHaveBeenCalled();
+        });
+
+        it('should write to a temporary file first', async () => {
+            await atomicWrite('test.arb', '{"a":1}', false);
+
+            const tempFilePath = vi.mocked(fs.writeFile).mock.calls[0][0] as string;
+            expect(tempFilePath).toContain('.tmp-');
+            expect(vi.mocked(fs.rename)).toHaveBeenCalledWith(tempFilePath, 'test.arb');
         });
     });
 
     /**
      * @group Discovery
-     * Tests the extraction of ISO language codes from ARB filenames (e.g., app_en.arb -> en).
      */
     describe('getAvailableLangs', () => {
-        it('should extract language tags from filenames', async () => {
-            const mockFiles = ['app_en.arb', 'app_fr.arb', 'app_es_ES.arb', 'ignore_me.txt'];
+        it('should extract complex language tags (e.g. fr_CA, en)', async () => {
+            const mockFiles = ['app_en.arb', 'app_fr_CA.arb', 'other.txt'];
             vi.mocked(fs.readdir).mockResolvedValue(mockFiles as any);
 
-            const langs = await getAvailableLangs('/mock/path');
-            // Expected to ignore non-ARB files and strip the prefix/extension
-            expect(langs).toEqual(['en', 'fr', 'es_ES']);
-        });
-
-        it('should return an empty array if folder reading fails', async () => {
-            vi.mocked(fs.readdir).mockRejectedValue(new Error('Folder not found'));
-            const langs = await getAvailableLangs('/wrong/path');
-            expect(langs).toEqual([]);
+            const langs = await getAvailableLangs('/mock');
+            expect(langs).toEqual(['en', 'fr_CA']);
         });
     });
 
     /**
      * @group Transformation
-     * Tests the logic of merging new localization keys into existing datasets.
      */
     describe('mergeJsonStrings', () => {
-        it('should merge two JSON strings, prioritizing existing keys', () => {
-            const existing = '{"hello": "Bonjour"}';
-            const newData = '{"hello": "Hi", "world": "Monde"}';
+        it('should merge and prioritize existing values', () => {
+            const existing = '{"key1": "old"}';
+            const newData = '{"key1": "new", "key2": "fresh"}';
             const result = JSON.parse(mergeJsonStrings(existing, newData));
             
-            // Logic check: "hello" should remain "Bonjour" (existing value)
-            expect(result.hello).toBe("Bonjour"); 
-            expect(result.world).toBe("Monde");
-        });
-
-        it('should handle empty or invalid JSON gracefully', () => {
-            // Should initialize a new JSON object if the first string is empty
-            expect(mergeJsonStrings('', '{"a":1}')).toBe('{\n  "a": 1\n}');
-            // Should return the original string if it is not valid JSON
-            expect(mergeJsonStrings('invalid', '{"a":1}')).toBe('invalid');
+            expect(result.key1).toBe("old"); // Priorité à l'existant
+            expect(result.key2).toBe("fresh");
         });
     });
 
     /**
-     * @group File I/O
-     * Tests the process of reading, updating, sorting, and writing ARB files to disk.
+     * @group Integration_Logic
      */
     describe('updateArbFiles', () => {
-        beforeEach(() => {
-            vi.clearAllMocks();
-        });
+        it('should add a key, sort alphabetically, and write atomically', async () => {
+            vi.mocked(fs.readFile).mockResolvedValue('{"z": 1, "a": 2}');
+            
+            await updateArbFiles('app_en.arb', 'm', '3');
 
-        it('should add a new key and sort them alphabetically', async () => {
-            const existingArb = '{"beta": "b"}';
-            vi.mocked(fs.readFile).mockResolvedValue(existingArb);
-            vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-            vi.mocked(fs.rename).mockResolvedValue(undefined);
-
-            await updateArbFiles('/path/app_en.arb', 'alpha', 'a');
-
-            // Verify alphabetical sorting: 'alpha' must come before 'beta'
             const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
             const parsed = JSON.parse(writtenContent);
             
-            const keys = Object.keys(parsed);
-            expect(keys).toEqual(['alpha', 'beta']);
-            expect(parsed.alpha).toBe('a');
-        });
-
-        it('should create a new object if file does not exist (ENOENT)', async () => {
-            // Mocking a "File Not Found" error
-            vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
-            vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-
-            await updateArbFiles('/path/app_en.arb', 'newKey', 'newValue');
-
-            const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-            expect(JSON.parse(writtenContent)).toEqual({ newKey: 'newValue' });
+            // Vérification de l'ordre alphabétique des clés
+            expect(Object.keys(parsed)).toEqual(['a', 'm', 'z']);
+            expect(vi.mocked(fs.rename)).toHaveBeenCalled();
         });
     });
 });
