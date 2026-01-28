@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { LLMClient } from "./llmClient.js";
+import { LLMService } from "./llmService.js";
 import { L10nProcessor, L10nProcessorOptions } from "./l10nProcessor.js";
 
 const program = new Command();
@@ -57,7 +59,9 @@ async function main() {
 
   console.info(`[INFO] Starting localization with ${opts.provider} (${opts.model})...`);
 
-  const processor = new L10nProcessor(processorOptions);
+  const llmClient = new LLMClient(opts.provider, opts.model, apiKey);
+  const llmService = new LLMService(llmClient);
+  const processor = new L10nProcessor(processorOptions, llmService);
 
   try {
     await processor.localizeFiles();

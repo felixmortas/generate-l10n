@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { LLMClient } from "../core/llmClient.js";
+import { LLMService } from "../core/llmService.js";
 import { L10nProcessor, L10nProcessorOptions } from "../core/l10nProcessor.js";
 import fs from "fs/promises";
 import path from "path";
@@ -38,7 +40,14 @@ describe("L10nProcessor - Intégration", () => {
       backup: false
     };
 
-    processor = new L10nProcessor(processorOptions);
+    const llmClient = new LLMClient(
+      processorOptions.provider,
+      processorOptions.model,
+      processorOptions.apiKey
+    );
+    
+    const llmService = new LLMService(llmClient);
+    processor = new L10nProcessor(processorOptions, llmService);
 
     // 5. LLM Mocking
     // Access the instance to define returns

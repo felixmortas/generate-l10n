@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { LLMClient } from '../core/llmClient.js';
+import { LLMService } from '../core/llmService.js';
 import { L10nProcessor } from "../core/l10nProcessor.js";
 import { ConfigurationManager } from "../core/configurationManager.js";
 import { isValidFlutterString, executeGenL10n, runWithProgress } from "../core/utils.js";
@@ -19,7 +21,18 @@ export class TextLocalizationCommand {
     const extConfig = await ConfigurationManager.getConfig();
     if (!extConfig) return;
 
-    const processor = new L10nProcessor({ ...extConfig, files: [] });
+    const llmClient = new LLMClient(
+            extConfig.provider, 
+            extConfig.model, 
+            extConfig.apiKey
+        );
+    
+        const llmService = new LLMService(llmClient);
+    
+        const processor = new L10nProcessor(
+          { ...extConfig, files: [] }, 
+            llmService
+        );
 
     try {
       await this.executeWorkflow(editor, selection, selectedText, processor, executeGen);

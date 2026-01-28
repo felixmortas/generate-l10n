@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { LLM } from '../core/llm';
+import { LLMClient } from '../core/llmClient';
+import { LLMService } from '../core/llmService';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import 'dotenv/config';
 
-describe('LLM Providers Integration Tests', () => {
+describe('LLM Service Integration Tests', () => {
   
   const providers = [
     { name: 'mistral', model: 'mistral-small-latest', key: process.env.MISTRAL_API_KEY },
@@ -21,7 +22,8 @@ describe('LLM Providers Integration Tests', () => {
     
     describe(`Provider: ${name}`, () => {
       const itConditional = key ? it : it.skip;
-      const llm = new LLM(name, model, key!);
+      const llmClient = new LLMClient(name, model, key!);
+      const llm = new LLMService(llmClient);
 
       // 1. Test detectTextLanguage
       itConditional('detectTextLanguage: should detect French', async () => {

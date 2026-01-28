@@ -11,7 +11,7 @@
 
 import fs from "fs/promises";
 import path from "path";
-import { LLM } from "./llm.js";
+import { LLMService } from "./llmService.js";
 import { atomicWrite, mergeJsonStrings, isValidFlutterString, getAvailableLangs, updateArbFiles } from "./utils.js";
 import { ExtensionConfiguration } from "./configurationManager.js";
 
@@ -20,12 +20,12 @@ export interface L10nProcessorOptions extends ExtensionConfiguration {
 }
 
 export class L10nProcessor {
-  private llm: LLM;
+  private llm: LLMService;
   private opts: L10nProcessorOptions;
 
-  constructor(opts: L10nProcessorOptions) {
+  constructor(opts: L10nProcessorOptions, llm: LLMService) {
     this.opts = opts;
-    this.llm = new LLM(opts.provider, opts.model, opts.apiKey);
+    this.llm = llm;
   }
 
   /**
