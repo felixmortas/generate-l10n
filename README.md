@@ -64,7 +64,7 @@ Whether you want to process **entire files** or just a **specific snippet of tex
 
 * Highlight a string in your `.dart` file.
 * Click the **Lightbulb 💡** icon, right-click or press `Cmd+.` / `Ctrl+.`.
-* Select **"auto-l10n"** (replaces text with key) or **"auto-l10n & execute"** (replaces text + runs flutter gen-l10n).
+* Select **"Auto-l10n: Localize Text"** (replaces text with key) or **"Auto-l10n: Localize & Build"** (replaces text + runs flutter gen-l10n).
 * The AI will automatically update all your `.arb` files with the translated values.
 
 ### 2. Localize Entire Files (Batch)
