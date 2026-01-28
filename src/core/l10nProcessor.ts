@@ -56,7 +56,7 @@ export class L10nProcessor {
     const langs = arbFiles.map(
       (f) => path.basename(f).split("_")[1].split(".")[0]
     );
-    console.debug(`[DEBUG] Detected languages: ${langs}`);
+    console.debug(`[DEBUG] Detected languages in ${resolvedArbsFolder}: ${langs}`);
 
     // Validate that the first Flutter file exists
     const firstFlutterFile = path.resolve(files[0]);
@@ -68,16 +68,12 @@ export class L10nProcessor {
 
     // Detect the source language by analyzing a Flutter file
     const langProof = await fs.readFile(firstFlutterFile, "utf8");
-    console.info("[INFO] Language detection...");
-    const langTagRaw = await this.llm.chooseFileLanguage(langProof, langs);
-    console.info(`[INFO] LangTagRaw: ${langTagRaw}`);
-    const langTag = Array.from(langTagRaw)
-      .filter((c) => /[a-zA-Z0-9_-]/.test(c))
-      .join("");
-    console.info(`[INFO] Language detected: ${langTag}`);
+    console.info("[INFO] First Flutter file language detection...");
+    const detectedLangTag = await this.llm.chooseFileLanguage(langProof, langs);
+    console.info(`[INFO] Language detected: ${detectedLangTag}`);
 
     // Prepare target ARB file for the detected language
-    const targetArbPath = path.join(resolvedArbsFolder, `app_${langTag}.arb`);
+    const targetArbPath = path.join(resolvedArbsFolder, `app_${detectedLangTag}.arb`);
 
     let fullArbLines: Record<string, any> = {};
     let arbContent = "{}";
@@ -106,15 +102,13 @@ export class L10nProcessor {
       const finalResponse = await this.llm.localizeFiles(
         flutterContent,
         arbContent,
-        langTag,
+        detectedLangTag,
         packageName,
       );
 
       // Merge ARB entries progressively
       const parsedArb = finalResponse.new_arb_keys || {};
       console.debug(`[DEBUG] ARB lines created: ${JSON.stringify(parsedArb).slice(0, 200)}`);
-
-      const updatedFlutter = finalResponse.modified_dart_code || "";
 
       fullArbLines = { ...fullArbLines, ...parsedArb };
 
@@ -130,6 +124,8 @@ export class L10nProcessor {
       await atomicWrite(targetArbPath, newArbContent, backup);
 
       // If the LLM returned updated Flutter content, overwrite the file
+      const updatedFlutter = finalResponse.modified_dart_code || "";
+
       if (updatedFlutter) {
         console.info(`[INFO] Flutter file update: ${filePath}`);
         await atomicWrite(filePath, updatedFlutter, backup);

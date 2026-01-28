@@ -180,9 +180,6 @@ export class LLM {
 
     // Expecting JSON: { "language": "en" }
     const result = await this._invoke(sysPrompt, humPrompt);
-    console.info(`[DEBUG] chooseFileLanguage result: ${JSON.stringify(result)}`);
-    console.info(`[DEBUG] results type: ${typeof result}, keys: ${Object.keys(result).join(', ')}`);
-    console.info(`[DEBUG] detected language: ${result.lang_tag}`);
     return result.lang_tag;
   }
 
