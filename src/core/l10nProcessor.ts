@@ -9,10 +9,9 @@
  * 5. Translates ARB keys into all other detected languages.
  */
 
-import fs from "fs/promises";
 import path from "path";
 import { LLMService } from "./llmService.js";
-import { atomicWrite, mergeJsonStrings, isValidFlutterString, getAvailableLangs, updateArbFiles } from "./utils.js";
+import { atomicWrite, mergeJsonStrings, isValidFlutterString, getAvailableLangs, updateArbFiles, updateAllArbFiles, readFileContent } from "./utils.js";
 import { ExtensionConfiguration } from "./configurationManager.js";
 
 export interface L10nProcessorOptions extends ExtensionConfiguration {
@@ -39,64 +38,28 @@ export class L10nProcessor {
     // Destructuring clean configuration values
     const { arbsFolder, files, backup, packageName } = this.opts;
 
-    // Validate ARB folder existence
-    const resolvedArbsFolder = path.resolve(arbsFolder);
-
-    try {
-      await fs.access(resolvedArbsFolder);
-    } catch {
-      throw new Error(`The folder ${resolvedArbsFolder} does not exist.`);
-    }
-
-    // Detect existing ARB files in the folder (format: app_<lang>.arb)
-    const arbFiles = (await fs.readdir(resolvedArbsFolder))
-      .filter((f) => f.startsWith("app_") && f.endsWith(".arb"))
-      .map((f) => path.join(resolvedArbsFolder, f));
-
-    const langs = arbFiles.map(
-      (f) => path.basename(f).split("_")[1].split(".")[0]
-    );
-    console.debug(`[DEBUG] Detected languages in ${resolvedArbsFolder}: ${langs}`);
-
-    // Validate that the first Flutter file exists
-    const firstFlutterFile = path.resolve(files[0]);
-    try {
-      await fs.access(firstFlutterFile);
-    } catch {
-      throw new Error(`Flutter file not found: ${firstFlutterFile}`);
-    }
+    // Get all ARB languages available
+    const langs = await getAvailableLangs(arbsFolder);
+    console.debug(`[DEBUG] Detected languages in ${arbsFolder}: ${langs}`);
 
     // Detect the source language by analyzing a Flutter file
-    const langProof = await fs.readFile(firstFlutterFile, "utf8");
+    const firstFileContent = await readFileContent(files[0]);
     console.info("[INFO] First Flutter file language detection...");
-    const detectedLangTag = await this.llm.chooseFileLanguage(langProof, langs);
+    const detectedLangTag = await this.llm.chooseFileLanguage(firstFileContent, langs);
     console.info(`[INFO] Language detected: ${detectedLangTag}`);
 
     // Prepare target ARB file for the detected language
-    const targetArbPath = path.join(resolvedArbsFolder, `app_${detectedLangTag}.arb`);
+    const targetArbPath = path.join(arbsFolder, `app_${detectedLangTag}.arb`);
 
     let fullArbLines: Record<string, any> = {};
-    let arbContent = "{}";
-    try {
-      arbContent = await fs.readFile(targetArbPath, "utf8");
-    } catch {
-      console.warn(
-        `[WARNING] Target ARB file not found, initialized to empty object: ${targetArbPath}`
-      );
-    }
 
     // Process each provided Flutter file
-    for (const filePathStr of files) {
-      const filePath = path.resolve(filePathStr);
-      try {
-        await fs.access(filePath);
-      } catch {
-        console.warn(`[WARNING] Flutter file not found: ${filePath}`);
-        continue; // Skip missing files
-      }
-
+    for (const filePath of files) {
       console.info(`[INFO] File processing: ${filePath}`);
-      const flutterContent = await fs.readFile(filePath, "utf8");
+      const flutterContent = await readFileContent(filePath);
+
+      let arbContent = "{}";
+      arbContent = await readFileContent(targetArbPath);
 
       // Query LLM to extract ARB keys and potentially updated Flutter content
       const finalResponse = await this.llm.localizeFiles(
@@ -114,17 +77,12 @@ export class L10nProcessor {
 
       // Safely update ARB file (merge with existing keys)
       const fullArbJson = JSON.stringify(fullArbLines, null, 2);
-      let existing = "{}";
-      try {
-        existing = await fs.readFile(targetArbPath, "utf8");
-      } catch {
-        existing = "{}";
-      }
-      const newArbContent = mergeJsonStrings(existing, fullArbJson);
+
+      const newArbContent = mergeJsonStrings(arbContent, fullArbJson);
       await atomicWrite(targetArbPath, newArbContent, backup);
 
       // If the LLM returned updated Flutter content, overwrite the file
-      const updatedFlutter = finalResponse.modified_dart_code || "";
+      const updatedFlutter = finalResponse.modified_dart_code;
 
       if (updatedFlutter) {
         console.info(`[INFO] Flutter file update: ${filePath}`);
@@ -133,15 +91,13 @@ export class L10nProcessor {
     }
 
     // Translate into other detected languages (except source)
-    const otherArbFiles = arbFiles.filter((f) => f !== targetArbPath);
+    const otherLangs = langs
+      .filter((lang) => lang !== detectedLangTag);
     console.info(
-      `[INFO] Translation into other languages: ${otherArbFiles.map((f) =>
-        path.basename(f)
-      )}`
+      `[INFO] Translation into other languages: ${otherLangs}`,
     );
 
-    for (const arbFile of otherArbFiles) {
-      const lang = path.basename(arbFile).split("_")[1].split(".")[0];
+    for (const lang of otherLangs) {
       console.info(`[INFO] Translation in progress for: ${lang}`);
 
       // Generate translations using the LLM
@@ -150,15 +106,11 @@ export class L10nProcessor {
         lang
       );
 
-      let existing = "{}";
-      try {
-        existing = await fs.readFile(arbFile, "utf8");
-      } catch {
-        existing = "{}";
-      }
-
+      const arbFile = path.join(arbsFolder, `app_${lang}.arb`);
+      const arbContent = await readFileContent(arbFile);
+      
       // Safely merge and write translation
-      const newArbContent = mergeJsonStrings(existing, JSON.stringify(translated));
+      const newArbContent = mergeJsonStrings(arbContent, JSON.stringify(translated));
       await atomicWrite(arbFile, newArbContent, backup);
     }
   }
@@ -189,12 +141,7 @@ export class L10nProcessor {
 
     // 3. Read the content of the source language ARB file
     const sourceArbPath = path.join(arbsFolder, `app_${sourceLang}.arb`);
-    let sourceArbContent = "{}";
-    try {
-      sourceArbContent = await fs.readFile(sourceArbPath, "utf8");
-    } catch (e) {
-      console.warn(`Source ARB file ${sourceLang} not found, using empty object.`);
-    }
+    const sourceArbContent = await readFileContent(sourceArbPath);
 
     // 4. Search for existing key or generate translations via LLM
     const l10nData = await this.llm.findOrTranslateKey(cleanText, sourceArbContent, langs);

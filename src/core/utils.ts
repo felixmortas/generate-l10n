@@ -135,6 +135,34 @@ export async function updateArbFiles(
 }
 
 /**
+ * Reads the contents of a file securely.
+ */
+export async function readFileContent(filePath: string): Promise<string> {
+    try {
+        return await fs.readFile(filePath, 'utf-8');
+    } catch (error) {
+        console.error(`[ERROR] Impossible to read the file ${filePath}:`, error);
+        return "";
+    }
+}
+
+/**
+ * Updates multiple ARB files at once from a translations object.
+ * (e.g., { "en": "Hello", "fr": "Bonjour" })
+ */
+export async function updateAllArbFiles(
+    arbsFolder: string,
+    key: string,
+    translations: Record<string, string>,
+    backup: boolean
+): Promise<void> {
+    for (const [lang, value] of Object.entries(translations)) {
+        const arbPath = path.join(arbsFolder, `app_${lang}.arb`);
+        await updateArbFiles(arbPath, key, value, backup);
+    }
+}
+
+/**
  * Utility to wrap long-running tasks with a VS Code progress notification.
  */
 export async function runWithProgress<T>(
