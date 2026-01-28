@@ -9,30 +9,29 @@ import os from "os";
 describe("L10nProcessor - Intégration", () => {
   let tempDir: string;
   let processor: L10nProcessor;
+  let llmService: LLMService;
 
-  // We prepare a realistic file structure.
   beforeEach(async () => {
-    // 1. Creating the temporary folder
+    // 1. Création de l'arborescence temporaire
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "l10n-integration-"));
     
-    const l10nDir = path.join(tempDir, "lib/l10n");
+    const l10nDir = path.join(tempDir, "lib", "l10n");
     await fs.mkdir(l10nDir, { recursive: true });
 
-    // 2. Creation of initial ARB files
+    // 2. Création des fichiers ARB initiaux
+    // Note: On ajoute @@locale car ton code semble s'appuyer sur la structure standard
     await fs.writeFile(path.join(l10nDir, "app_fr.arb"), JSON.stringify({ "@@locale": "fr" }));
     await fs.writeFile(path.join(l10nDir, "app_en.arb"), JSON.stringify({ "@@locale": "en" }));
 
-    // 3. Creation of a test Dart file
-    const dartPath = path.join(tempDir, "lib/email_page.dart");
-    const dartContent = `
-      const Text('Abonnement activé.');
-    `;
+    // 3. Création d'un fichier Dart de test
+    const dartPath = path.join(tempDir, "lib", "email_page.dart");
+    const dartContent = `const Text('Abonnement activé.');`;
     await fs.writeFile(dartPath, dartContent);
 
-    // 4. Processor initialization
+    // 4. Initialisation du processeur avec injection de dépendances
     const processorOptions: L10nProcessorOptions = {
-      provider: "openai",
-      model: "gpt-4",
+      provider: "mistral",
+      model: "mistral-small-latest",
       arbsFolder: l10nDir,
       files: [dartPath],
       apiKey: "fake-key",
@@ -41,37 +40,35 @@ describe("L10nProcessor - Intégration", () => {
     };
 
     const llmClient = new LLMClient(
-      processorOptions.provider,
+      processorOptions.provider as any,
       processorOptions.model,
       processorOptions.apiKey
     );
     
-    const llmService = new LLMService(llmClient);
+    llmService = new LLMService(llmClient);
     processor = new L10nProcessor(processorOptions, llmService);
 
-    // 5. LLM Mocking
-    // Access the instance to define returns
-    const llm = (processor as any).llm;
-    
-    // For localizeSelectedText
-    vi.spyOn(llm, 'detectTextLanguage').mockResolvedValue({ lang_tag: "fr" });
-    vi.spyOn(llm, 'findOrTranslateKey').mockResolvedValue({
+    // 5. MOCKING des appels LLM pour éviter les appels API réels
+    // On mocke les méthodes du llmService directement
+    vi.spyOn(llmService, 'detectTextLanguage').mockResolvedValue({ lang_tag: "fr" });
+    vi.spyOn(llmService, 'findOrTranslateKey').mockResolvedValue({
       found: false,
       key: "subscriptionActivated",
       fr: "Abonnement activé.",
       en: "Subscription activated."
     });
 
-    // For localizeFiles (the batch mode)
-    vi.spyOn(llm, 'chooseFileLanguage').mockResolvedValue("fr");
-    vi.spyOn(llm, 'localizeFiles').mockResolvedValue({
+    vi.spyOn(llmService, 'chooseFileLanguage').mockResolvedValue("fr");
+    vi.spyOn(llmService, 'localizeFiles').mockResolvedValue({
       new_arb_keys: { "welcome": "Bienvenue" },
       modified_dart_code: "const Text(AppLocalizations.of(context)!.welcome);"
     });
-    vi.spyOn(llm, 'amendArb').mockResolvedValue(JSON.stringify({ 
-      "@@locale": "en",
+
+    // Attention : amendArb doit renvoyer un objet Record, pas un string JSON
+    // car ton code fait JSON.stringify(translated)
+    vi.spyOn(llmService, 'amendArb').mockResolvedValue({ 
       "welcome": "Welcome" 
-    }));
+    });
   });
 
   afterEach(async () => {
@@ -80,29 +77,38 @@ describe("L10nProcessor - Intégration", () => {
   });
 
   it("should process a selected text (localizeSelectedText)", async () => {
+    // On simule la sélection de 'Abonnement activé.'
     const result = await processor.localizeSelectedText("'Abonnement activé.'");
 
-    // 1. Check the return
+    // Vérifie le remplacement côté Flutter
     expect(result).toBe("AppLocalizations.of(context)!.subscriptionActivated");
 
-    // 2. Verify that the FR ARB file was updated
-    const frContent = JSON.parse(await fs.readFile(path.join(tempDir, "lib/l10n/app_fr.arb"), "utf-8"));
+    // Vérifie la mise à jour physique du fichier ARB source (FR)
+    const frPath = path.join(tempDir, "lib", "l10n", "app_fr.arb");
+    const frContent = JSON.parse(await fs.readFile(frPath, "utf-8"));
     expect(frContent.subscriptionActivated).toBe("Abonnement activé.");
 
-    // 3. Verify that the EN ARB file was translated
-    const enContent = JSON.parse(await fs.readFile(path.join(tempDir, "lib/l10n/app_en.arb"), "utf-8"));
+    // Vérifie la traduction automatique dans le fichier cible (EN)
+    const enPath = path.join(tempDir, "lib", "l10n", "app_en.arb");
+    const enContent = JSON.parse(await fs.readFile(enPath, "utf-8"));
     expect(enContent.subscriptionActivated).toBe("Subscription activated.");
   });
 
   it("should process an entire file (localizeFiles)", async () => {
     await processor.localizeFiles();
 
-    // 1. Check that the Dart file has been modified
-    const dartContent = await fs.readFile(path.join(tempDir, "lib/email_page.dart"), "utf-8");
+    // 1. Vérifie que le fichier Dart a été modifié physiquement (atomicWrite)
+    const dartPath = path.join(tempDir, "lib", "email_page.dart");
+    const dartContent = await fs.readFile(dartPath, "utf-8");
     expect(dartContent).toContain("AppLocalizations.of(context)!.welcome");
 
-    // 2. Verify that the ARB files have the new keys
-    const frContent = JSON.parse(await fs.readFile(path.join(tempDir, "lib/l10n/app_fr.arb"), "utf-8"));
+    // 2. Vérifie que les fichiers ARB ont intégré les nouvelles clés
+    const frPath = path.join(tempDir, "lib", "l10n", "app_fr.arb");
+    const frContent = JSON.parse(await fs.readFile(frPath, "utf-8"));
     expect(frContent.welcome).toBe("Bienvenue");
+
+    const enPath = path.join(tempDir, "lib", "l10n", "app_en.arb");
+    const enContent = JSON.parse(await fs.readFile(enPath, "utf-8"));
+    expect(enContent.welcome).toBe("Welcome");
   });
 });
