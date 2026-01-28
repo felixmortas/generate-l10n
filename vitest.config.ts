@@ -6,7 +6,8 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/out/**',
-      'src/test/extension.test.ts', // On exclut le test VS Code
+      'src/test/extension.test.ts', 
+      'src/test/llmService.test.ts',
     ],
     setupFiles: ['./src/test/setup.ts'],
   },
