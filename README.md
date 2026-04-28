@@ -1,3 +1,23 @@
+# Executive summary
+
+### 🌍 Generate L10n – VSCode AI extension for Flutter internationalization
+
+Development of an innovative **VSCode** extension designed to eliminate the hassle of internationalization (L10n) in Flutter projects. It automates string detection and translation by combining the native user experience of VSCode with the power of LLMs.
+
+**The concept:** An integrated visual interface that allows you to select text or complete Dart files and use AI to instantly generate `.arb` files and update the source code, followed by automatic execution of Flutter commands if requested.
+
+**Technical highlights:**
+
+- **Orchestration:** Integration of **Object-Oriented Programming (OOP)** architecture for high maintainability and to orchestrate complex file modification logic.
+- **Multi-provider AI:** Compatible with cutting-edge models (Mistral, Gemini, OpenAI) for maximum contextual accuracy.
+- **Native VSCode UI:** Full implementation of an **action menu** for single string localization, or interactive **Tree View** in TypeScript in the Activity Bar for granular management of files to be processed.
+- **End-to-end workflow:** The extension doesn't just translate; it intelligently modifies the Dart code, manages security backups, and triggers the Flutter code generator (`gen-l10n`) in the background.
+- **Robust architecture:** Automatic detection of project configuration (`pubspec.yaml`) and secure management of API keys via VSCode settings.
+
+**Result:** Significant time savings for Flutter mobile developers, transforming a manual task that took several hours into an AI-assisted process that takes just a few seconds, while ensuring translation consistency and the ability to easily revert changes.
+
+[Download the extension](https://marketplace.visualstudio.com/items?itemName=felixmortas.generate-l10n)
+
 # Generate L10n - VSCode Extension
 
 **Automate localization of Dart/Flutter projects using AI/LLMs directly from VSCode.**
