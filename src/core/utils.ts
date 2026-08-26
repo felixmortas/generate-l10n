@@ -44,25 +44,29 @@ export async function atomicWrite(filePath: string, content: string, backup: boo
  * minimal diff instead of reformatting the whole file.
  */
 export interface ArbFormat {
-    /** Indentation width in spaces (2 when it cannot be detected). */
-    indent: number;
+    /** Literal indentation used by the document (2 spaces when undetectable). */
+    indent: string;
     /** Whether the document ended with a newline. */
     trailingNewline: boolean;
+    /** Line ending used by the document. */
+    eol: '\n' | '\r\n';
 }
 
 /**
- * Detects the indentation and trailing newline of an existing ARB document.
- * New/empty documents default to 2 spaces and a trailing newline.
+ * Detects the indentation, line ending, and trailing newline of an existing
+ * ARB document. New/empty documents default to 2 spaces, LF, and a trailing
+ * newline.
  */
 export function detectArbFormat(content: string): ArbFormat {
-    if (!content) return { indent: 2, trailingNewline: true };
+    if (!content) return { indent: '  ', trailingNewline: true, eol: '\n' };
 
     // Indentation of the first top-level entry, e.g. '{\n    "key": ...'
     const firstEntry = content.match(/^\s*\{[^\n]*\n([ \t]*)\S/);
     const rawIndent = firstEntry?.[1] ?? '';
-    const indent = rawIndent.includes('\t') ? 4 : (rawIndent.length || 2);
+    const indent = rawIndent || '  ';
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
 
-    return { indent, trailingNewline: content.endsWith('\n') };
+    return { indent, trailingNewline: content.endsWith('\n'), eol };
 }
 
 /**
@@ -71,7 +75,8 @@ export function detectArbFormat(content: string): ArbFormat {
  */
 export function stringifyArb(data: Record<string, unknown>, format: ArbFormat): string {
     const json = JSON.stringify(data, null, format.indent);
-    return format.trailingNewline ? `${json}\n` : json;
+    const serialized = format.eol === '\r\n' ? json.replace(/\n/g, '\r\n') : json;
+    return format.trailingNewline ? `${serialized}${format.eol}` : serialized;
 }
 
 /**
@@ -266,31 +271,34 @@ export async function executeGenL10n(cwd?: string): Promise<void> {
         clear: true
     };
 
-    const execution = await vscode.tasks.executeTask(task);
-
-    // `onDidEndTaskProcess` carries the exit code; `onDidEndTask` is the
-    // fallback for a task that ends without ever starting a process.
-    const exitCode = await new Promise<number | undefined>(resolve => {
-        const subscriptions: vscode.Disposable[] = [];
-        const settle = (code: number | undefined) => {
-            subscriptions.forEach(subscription => subscription.dispose());
-            resolve(code);
-        };
-
+    // Register listeners before starting the task so a fast process cannot
+    // finish before the completion events are observed.
+    const subscriptions: vscode.Disposable[] = [];
+    const exitCode = new Promise<number | undefined>(resolve => {
         subscriptions.push(
             vscode.tasks.onDidEndTaskProcess(event => {
-                if (event.execution === execution) settle(event.exitCode);
+                if (event.execution.task === task) {
+                    resolve(event.exitCode);
+                }
             }),
             vscode.tasks.onDidEndTask(event => {
-                if (event.execution === execution) settle(undefined);
+                if (event.execution.task === task) {
+                    resolve(undefined);
+                }
             })
         );
     });
 
-    if (exitCode !== 0) {
-        throw new Error(
-            `flutter gen-l10n failed${exitCode === undefined ? '' : ` with exit code ${exitCode}`}. ` +
-            'Check the "Flutter L10n" task output.'
-        );
+    try {
+        await vscode.tasks.executeTask(task);
+        const code = await exitCode;
+        if (code !== 0) {
+            throw new Error(
+                `flutter gen-l10n failed${code === undefined ? '' : ` with exit code ${code}`}. ` +
+                'Check the "Flutter L10n" task output.'
+            );
+        }
+    } finally {
+        subscriptions.forEach(subscription => subscription.dispose());
     }
 }

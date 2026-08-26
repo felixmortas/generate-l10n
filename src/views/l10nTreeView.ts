@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { ConfigurationManager } from '../core/configurationManager.js';
 
 /**
  * Tree node types
@@ -99,22 +101,24 @@ export class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
 
   private buildFileTree(): DirectoryNode {
     const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
+    if (!workspaceFolders || workspaceFolders.length === 0) {
       return new DirectoryNode('No project open', '', false);
     }
 
-    const rootPath = workspaceFolders[0].uri.fsPath;
-    const libPath = `${rootPath}/lib`;
+    const config = vscode.workspace.getConfiguration('generateL10n');
+    const projectRoot = ConfigurationManager.resolveProjectRoot(config, { silent: true })
+      ?? workspaceFolders[0].uri.fsPath;
+    const libPath = path.join(projectRoot, 'lib');
     const tree = new DirectoryNode('lib', libPath, false);
 
     const files = vscode.workspace.findFiles(
-      'lib/**/*.dart',
+      new vscode.RelativePattern(projectRoot, 'lib/**/*.dart'),
       '{**/node_modules,**/.git,**/l10n/**}'
     );
 
     files.then(uris => {
       uris.forEach(uri => {
-        const relativePath = uri.fsPath.substring(libPath.length + 1);
+        const relativePath = path.relative(libPath, uri.fsPath);
         if (!relativePath) return;
 
         const parts = relativePath.split(/[/\\]/);
@@ -129,7 +133,7 @@ export class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
             ) as DirectoryNode | undefined;
 
             if (!dir) {
-              const fullPath = `${libPath}/${parts.slice(0, index + 1).join('/')}`;
+              const fullPath = path.join(libPath, ...parts.slice(0, index + 1));
               dir = new DirectoryNode(part, fullPath, false);
               current.children.push(dir);
             }

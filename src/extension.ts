@@ -27,8 +27,22 @@ export async function activate(context: vscode.ExtensionContext) {
     treeDataProvider
   });
 
+  const projectRootChange = vscode.workspace.onDidChangeConfiguration(async event => {
+    if (!event.affectsConfiguration('generateL10n.projectRoot')) {
+      return;
+    }
+
+    const updatedConfig = vscode.workspace.getConfiguration('generateL10n');
+    const projectRoot = ConfigurationManager.resolveProjectRoot(updatedConfig, { silent: true });
+    if (projectRoot) {
+      await ConfigurationManager.ensurePackageName(updatedConfig, projectRoot);
+    }
+    treeDataProvider.refresh();
+  });
+
   // Commands recording
   context.subscriptions.push(
+    projectRootChange,
     vscode.commands.registerCommand('generateL10n.localizeSelectedFiles', () => localizeFilesCmd.execute()),
     vscode.commands.registerCommand('generateL10n.localizeText', () => TextLocalizationCommand.run(false)),
     vscode.commands.registerCommand('generateL10n.localizeTextAndGenerate', () => TextLocalizationCommand.run(true)),

@@ -177,6 +177,18 @@ describe('ConfigurationManager', () => {
 
       expect(result?.projectRoot).toBe('/app');
     });
+    it('should rank a root-level project in the second workspace above a nested first-folder project', async () => {
+      settings({ apiKey: 'sk-123', packageName: 'my_app' });
+      openWorkspace('/first', '/second');
+      mockFileSystem(
+        ['/first/client/pubspec.yaml', '/second/pubspec.yaml'],
+        { '/first': ['client'] }
+      );
+
+      const result = await ConfigurationManager.getConfig();
+
+      expect(result?.projectRoot).toBe('/second');
+    });
   });
 
   describe('resolveProjectRoot', () => {

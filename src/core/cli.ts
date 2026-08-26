@@ -15,7 +15,6 @@ program
   .requiredOption("--files <files...>", "Flutter files to process")
   .requiredOption("--package-name <name>", "Flutter project package name")
   .option("--api-key <key>", "API key for the LLM provider")
-  .option("--project-root <path>", "Flutter project root (defaults to the current directory)")
   .option("--arb-file-prefix <prefix>", "ARB filename prefix", DEFAULT_ARB_PREFIX)
   .option("--backup", "Create backup files before modifying (.bak)", false);
 
@@ -53,7 +52,7 @@ async function main() {
   const processorOptions: L10nProcessorOptions = {
     provider: opts.provider,
     model: opts.model,
-    projectRoot: opts.projectRoot ?? process.cwd(),
+    projectRoot: process.cwd(),
     arbsFolder: opts.arbsFolder,
     arbFilePrefix: opts.arbFilePrefix,
     apiKey: apiKey,

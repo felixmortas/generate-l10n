@@ -34,6 +34,7 @@ const SKIPPED_DIRS: Record<string, true> = {
     macos: true,
     windows: true,
     linux: true,
+    web: true,
     Pods: true
 };
 
@@ -79,7 +80,10 @@ export class ConfigurationManager {
         }
 
         if (!packageName) {
-            vscode.window.showWarningMessage('No pubspec.yaml found or package name missing. Please set it manually in settings.');
+            vscode.window.showWarningMessage(
+                `pubspec.yaml at ${projectRoot} has no package name. ` +
+                'Set "generateL10n.packageName" manually in settings.'
+            );
             // We allow proceeding but warn user, or return null based on strictness requirements.
             // For now, let's assume it's critical for generation:
              return null; 
@@ -104,9 +108,13 @@ export class ConfigurationManager {
      * Resolves the Flutter project root: the `generateL10n.projectRoot` setting
      * when set, otherwise the pubspec.yaml discovered in the workspace.
      * * @param config - The current workspace configuration.
+     * @param silent - Suppress discovery error and ambiguity notifications.
      * @returns The absolute project root, or null when no pubspec.yaml was found.
      */
-    public static resolveProjectRoot(config: vscode.WorkspaceConfiguration): string | null {
+    public static resolveProjectRoot(
+        config: vscode.WorkspaceConfiguration,
+        { silent = false }: { silent?: boolean } = {}
+    ): string | null {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
             return null;
@@ -119,20 +127,26 @@ export class ConfigurationManager {
                 : path.join(workspaceFolders[0].uri.fsPath, configured);
 
             if (!fs.existsSync(path.join(root, 'pubspec.yaml'))) {
-                vscode.window.showErrorMessage(
-                    `"generateL10n.projectRoot" points to ${root}, which contains no pubspec.yaml.`
-                );
+                if (!silent) {
+                    vscode.window.showErrorMessage(
+                        `"generateL10n.projectRoot" points to ${root}, which contains no pubspec.yaml.`
+                    );
+                }
                 return null;
             }
             return root;
         }
 
-        const candidates = workspaceFolders.flatMap(folder => this.findFlutterProjects(folder.uri.fsPath));
+        const candidates = this.findFlutterProjects(
+            workspaceFolders.map(folder => folder.uri.fsPath)
+        );
         if (candidates.length === 0) {
-            vscode.window.showErrorMessage(
-                'No Flutter project (pubspec.yaml) found in the workspace. ' +
-                'Set "generateL10n.projectRoot" to the Flutter project directory.'
-            );
+            if (!silent) {
+                vscode.window.showErrorMessage(
+                    'No Flutter project (pubspec.yaml) found in the workspace. ' +
+                    'Set "generateL10n.projectRoot" to the Flutter project directory.'
+                );
+            }
             return null;
         }
 
@@ -140,7 +154,7 @@ export class ConfigurationManager {
         const localized = candidates.filter(root => fs.existsSync(path.join(root, 'l10n.yaml')));
         const preferred = localized.length > 0 ? localized : candidates;
 
-        if (preferred.length > 1) {
+        if (preferred.length > 1 && !silent) {
             vscode.window.showWarningMessage(
                 `Multiple Flutter projects found; using ${preferred[0]}. ` +
                 'Set "generateL10n.projectRoot" to choose another one.'
@@ -148,14 +162,13 @@ export class ConfigurationManager {
         }
         return preferred[0];
     }
-
     /**
      * Finds directories containing a pubspec.yaml, breadth-first so that the
-     * shallowest projects come first.
+     * shallowest projects come first across all workspace folders.
      */
-    private static findFlutterProjects(root: string): string[] {
+    private static findFlutterProjects(roots: string[]): string[] {
         const found: string[] = [];
-        let level = [root];
+        let level = roots;
 
         for (let depth = 0; depth <= MAX_SEARCH_DEPTH && level.length > 0; depth++) {
             const nextLevel: string[] = [];
@@ -185,6 +198,7 @@ export class ConfigurationManager {
 
         return found;
     }
+
 
     /**
      * Reads the localization options Flutter itself uses, from l10n.yaml.
@@ -227,8 +241,11 @@ export class ConfigurationManager {
         const flutterProjectName = root ? this.getFlutterProjectName(root) : null;
 
         if (flutterProjectName) {
-            await config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
-            vscode.window.showInformationMessage(`Flutter project detected: ${flutterProjectName}`);
+            const currentPackageName = config.get<string>('packageName') ?? '';
+            if (currentPackageName !== flutterProjectName) {
+                await config.update('packageName', flutterProjectName, vscode.ConfigurationTarget.Workspace);
+                vscode.window.showInformationMessage(`Flutter project detected: ${flutterProjectName}`);
+            }
             return flutterProjectName;
         }
         

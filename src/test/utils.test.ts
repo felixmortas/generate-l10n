@@ -160,6 +160,19 @@ describe('utils.ts unit tests', () => {
 
             expect(merged).toBe('{\n  "a": "1",\n  "b": "2"\n}');
         });
+        it('should preserve tab indentation', () => {
+            const existing = '{\n\t"a": "1"\n}\n';
+            const merged = mergeJsonStrings(existing, '{"b": "2"}');
+
+            expect(merged).toBe('{\n\t"a": "1",\n\t"b": "2"\n}\n');
+        });
+
+        it('should preserve CRLF line endings', () => {
+            const existing = '{\r\n  "a": "1"\r\n}\r\n';
+            const merged = mergeJsonStrings(existing, '{"b": "2"}');
+
+            expect(merged).toBe('{\r\n  "a": "1",\r\n  "b": "2"\r\n}\r\n');
+        });
     });
 
     describe('arbFilePrefix', () => {
@@ -211,13 +224,21 @@ describe('utils.ts unit tests', () => {
      */
     describe('executeGenL10n', () => {
         const endWith = (exitCode: number | undefined) => {
-            const execution = { task: {} };
-            vi.mocked(vscode.tasks.executeTask).mockResolvedValue(execution as never);
-            vi.mocked(vscode.tasks.onDidEndTaskProcess).mockImplementation(((listener: (event: unknown) => void) => {
-                listener({ execution, exitCode });
-                return { dispose: vi.fn() };
-            }) as never);
+            let processListener: ((event: {
+                execution: { task: unknown };
+                exitCode: number | undefined;
+            }) => void) | undefined;
+
+            vi.mocked(vscode.tasks.onDidEndTaskProcess).mockImplementation(listener => {
+                processListener = listener as unknown as typeof processListener;
+                return { dispose: vi.fn() } as never;
+            });
             vi.mocked(vscode.tasks.onDidEndTask).mockReturnValue({ dispose: vi.fn() } as never);
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                const execution = { task };
+                processListener?.({ execution, exitCode });
+                return execution as never;
+            });
         };
 
         it('should run the task in the project root and resolve on exit code 0', async () => {
