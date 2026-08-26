@@ -253,7 +253,8 @@ export async function runWithProgress<T>(
  */
 export async function executeGenL10n(cwd?: string): Promise<void> {
     const task = new vscode.Task(
-        { type: 'flutter', task: 'gen-l10n' },
+        // 'shell' is a built-in task type, so no `contributes.taskDefinitions` is needed.
+        { type: 'shell' },
         vscode.TaskScope.Workspace,
         'gen-l10n',
         'Flutter L10n',
