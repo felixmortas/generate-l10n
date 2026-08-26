@@ -274,23 +274,42 @@ export async function executeGenL10n(cwd?: string): Promise<void> {
     // Register listeners before starting the task so a fast process cannot
     // finish before the completion events are observed.
     const subscriptions: vscode.Disposable[] = [];
+    let resolveExitCode!: (exitCode: number | undefined) => void;
     const exitCode = new Promise<number | undefined>(resolve => {
-        subscriptions.push(
-            vscode.tasks.onDidEndTaskProcess(event => {
-                if (event.execution.task === task) {
-                    resolve(event.exitCode);
-                }
-            }),
-            vscode.tasks.onDidEndTask(event => {
-                if (event.execution.task === task) {
-                    resolve(undefined);
-                }
-            })
-        );
+        resolveExitCode = resolve;
     });
+    let execution: vscode.TaskExecution | undefined;
+    const bufferedEvents: Array<{
+        execution: vscode.TaskExecution;
+        exitCode: number | undefined;
+    }> = [];
+    const handleTaskEnd = (
+        eventExecution: vscode.TaskExecution,
+        eventExitCode: number | undefined
+    ): void => {
+        if (execution === undefined) {
+            bufferedEvents.push({ execution: eventExecution, exitCode: eventExitCode });
+            return;
+        }
+
+        if (eventExecution === execution) {
+            resolveExitCode(eventExitCode);
+        }
+    };
+    subscriptions.push(
+        vscode.tasks.onDidEndTaskProcess(event => handleTaskEnd(event.execution, event.exitCode)),
+        vscode.tasks.onDidEndTask(event => handleTaskEnd(event.execution, undefined))
+    );
 
     try {
-        await vscode.tasks.executeTask(task);
+        execution = await vscode.tasks.executeTask(task);
+        for (const event of bufferedEvents) {
+            if (event.execution === execution) {
+                resolveExitCode(event.exitCode);
+                break;
+            }
+        }
+
         const code = await exitCode;
         if (code !== 0) {
             throw new Error(

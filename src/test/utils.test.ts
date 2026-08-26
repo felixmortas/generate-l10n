@@ -223,42 +223,93 @@ describe('utils.ts unit tests', () => {
      * @group Process
      */
     describe('executeGenL10n', () => {
-        const endWith = (exitCode: number | undefined) => {
-            let processListener: ((event: {
-                execution: { task: unknown };
-                exitCode: number | undefined;
-            }) => void) | undefined;
+        type ProcessEndListener = (event: vscode.TaskProcessEndEvent) => void;
+        type EndListener = (event: vscode.TaskEndEvent) => void;
+
+        const mockTaskEvents = () => {
+            let processListener: ProcessEndListener | undefined;
+            let endListener: EndListener | undefined;
 
             vi.mocked(vscode.tasks.onDidEndTaskProcess).mockImplementation(listener => {
-                processListener = listener as unknown as typeof processListener;
-                return { dispose: vi.fn() } as never;
+                processListener = listener as unknown as ProcessEndListener;
+                return { dispose: vi.fn() } as unknown as vscode.Disposable;
             });
-            vi.mocked(vscode.tasks.onDidEndTask).mockReturnValue({ dispose: vi.fn() } as never);
-            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
-                const execution = { task };
-                processListener?.({ execution, exitCode });
-                return execution as never;
+            vi.mocked(vscode.tasks.onDidEndTask).mockImplementation(listener => {
+                endListener = listener as unknown as EndListener;
+                return { dispose: vi.fn() } as unknown as vscode.Disposable;
             });
+
+            return {
+                emitProcess: (execution: vscode.TaskExecution, exitCode: number | undefined) => {
+                    processListener?.({ execution, exitCode });
+                },
+                emitEnd: (execution: vscode.TaskExecution) => {
+                    endListener?.({ execution });
+                }
+            };
         };
 
-        it('should run the task in the project root and resolve on exit code 0', async () => {
-            endWith(0);
+        it('resolves when exit code 0 arrives after executeTask resolves', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                return execution;
+            });
 
-            await expect(executeGenL10n('/repo/client')).resolves.toBeUndefined();
+            const result = executeGenL10n('/repo/client');
+            await Promise.resolve();
+            emitProcess(execution, 0);
 
+            await expect(result).resolves.toBeUndefined();
             expect(vscode.ShellExecution).toHaveBeenCalledWith('flutter gen-l10n', { cwd: '/repo/client' });
         });
 
-        it('should reject when gen-l10n exits with a non-zero code', async () => {
-            endWith(1);
+        it('resolves when exit code 0 arrives before executeTask resolves', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                emitProcess(execution, 0);
+                await Promise.resolve();
+                return execution;
+            });
 
-            await expect(executeGenL10n('/repo/client')).rejects.toThrow('exit code 1');
+            const result = executeGenL10n('/repo/client');
+
+            await expect(result).resolves.toBeUndefined();
         });
 
-        it('should reject when the task ends without an exit code', async () => {
-            endWith(undefined);
+        it('rejects when gen-l10n exits with code 1', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                return execution;
+            });
 
-            await expect(executeGenL10n()).rejects.toThrow('flutter gen-l10n failed');
+            const result = executeGenL10n('/repo/client');
+            await Promise.resolve();
+            emitProcess(execution, 1);
+
+            await expect(result).rejects.toThrow(/exit code 1/);
+        });
+
+        it('ignores an end event from a different execution', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                return execution;
+            });
+
+            const result = executeGenL10n('/repo/client');
+            await Promise.resolve();
+            const foreignExecution = { task: execution.task } as unknown as vscode.TaskExecution;
+            emitProcess(foreignExecution, 0);
+            emitProcess(execution, 1);
+
+            await expect(result).rejects.toThrow(/exit code 1/);
         });
     });
 });
