@@ -120,6 +120,7 @@ You can manually re-detect the project name emptying it in the config tab.
 ### Project layout
 
 The Flutter project does not have to sit at the workspace root. When `generateL10n.projectRoot` is empty, the extension searches every workspace folder (up to 3 levels deep) for a `pubspec.yaml`, preferring the project that also has an `l10n.yaml`. This covers monorepos such as `repo/client/pubspec.yaml` and multi-root workspaces. Set `generateL10n.projectRoot` when several Flutter projects exist and you want to pick one explicitly.
+The search stops at the first package found in each branch. If a workspace root is itself a package (for example, a melos workspace), set `generateL10n.projectRoot` explicitly.
 
 The ARB directory and filename prefix come from the project's `l10n.yaml`, so `arb-dir` and `template-arb-file` are honored:
 

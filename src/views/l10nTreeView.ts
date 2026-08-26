@@ -106,8 +106,10 @@ export class MyTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
     }
 
     const config = vscode.workspace.getConfiguration('generateL10n');
-    const projectRoot = ConfigurationManager.resolveProjectRoot(config, { silent: true })
-      ?? workspaceFolders[0].uri.fsPath;
+    const projectRoot = ConfigurationManager.resolveProjectRoot(config, { silent: true });
+    if (!projectRoot) {
+      return new DirectoryNode('No Flutter project found', '', false);
+    }
     const libPath = path.join(projectRoot, 'lib');
     const tree = new DirectoryNode('lib', libPath, false);
 

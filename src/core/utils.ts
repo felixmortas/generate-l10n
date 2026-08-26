@@ -55,13 +55,16 @@ export interface ArbFormat {
 /**
  * Detects the indentation, line ending, and trailing newline of an existing
  * ARB document. New/empty documents default to 2 spaces, LF, and a trailing
- * newline.
+ * newline. If both line-ending styles occur, CRLF is used for the rewritten
+ * document.
  */
 export function detectArbFormat(content: string): ArbFormat {
-    if (!content) return { indent: '  ', trailingNewline: true, eol: '\n' };
+    if (!content) {
+        return { indent: '  ', trailingNewline: true, eol: '\n' };
+    }
 
     // Indentation of the first top-level entry, e.g. '{\n    "key": ...'
-    const firstEntry = content.match(/^\s*\{[^\n]*\n([ \t]*)\S/);
+    const firstEntry = content.match(/^\s*\{\r?\n([ \t]*)"/);
     const rawIndent = firstEntry?.[1] ?? '';
     const indent = rawIndent || '  ';
     const eol = content.includes('\r\n') ? '\r\n' : '\n';
@@ -87,18 +90,25 @@ export function stringifyArb(data: Record<string, unknown>, format: ArbFormat): 
  * - Returns the merged document with the indentation and trailing newline of
  *   `existingJson`.
  *
- * If parsing fails, returns `existingJson` unchanged.
+ * If parsing fails or either JSON value is not an object, returns
+ * `existingJson` unchanged.
  */
 export function mergeJsonStrings(existingJson: string, newJson: string): string {
     try {
         console.debug('[DEBUG] Merging JSON files...');
-        const existingData: Record<string, unknown> = existingJson ? JSON.parse(existingJson) : {};
-        const newData: Record<string, unknown> = newJson ? JSON.parse(newJson) : {};
+        const existingData: unknown = existingJson.trim() ? JSON.parse(existingJson) : {};
+        const newData: unknown = newJson.trim() ? JSON.parse(newJson) : {};
+
+        if (!isPlainObject(existingData) || !isPlainObject(newData)) {
+            return existingJson;
+        }
 
         // Existing entries win and keep their position; new keys are appended.
         const merged: Record<string, unknown> = { ...existingData };
         for (const [key, value] of Object.entries(newData)) {
-            if (!(key in merged)) merged[key] = value;
+            if (!Object.prototype.hasOwnProperty.call(merged, key)) {
+                merged[key] = value;
+            }
         }
 
         return stringifyArb(merged, detectArbFormat(existingJson));
@@ -108,6 +118,17 @@ export function mergeJsonStrings(existingJson: string, newJson: string): string 
     }
 }
 
+/**
+ * Returns whether a parsed JSON value is a plain object suitable for an ARB
+ * document.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
 /**
  * Checks if the selected text is a valid Flutter/Dart string.
  * It must be wrapped in single or double quotes.
@@ -133,12 +154,18 @@ export const DEFAULT_ARB_PREFIX = 'app_';
 
 /**
  * Derives the ARB filename prefix from the `template-arb-file` of `l10n.yaml`.
- * 'app_en.arb' -> 'app_', 'intl_zh_Hant_TW.arb' -> 'intl_', 'strings.arb' -> 'strings_'.
+ * 'app_en.arb' -> 'app_', 'intl_zh_Hant_TW.arb' -> 'intl_', 'en.arb' -> ''.
  */
 export function arbFilePrefix(templateArbFile: string): string {
     const stem = path.basename(templateArbFile, '.arb');
     const withoutLocale = stem.match(new RegExp(`^(.+)_${LOCALE_TAG}$`));
-    return `${withoutLocale?.[1] ?? stem}_`;
+    if (withoutLocale) {
+        return `${withoutLocale[1]}_`;
+    }
+    if (new RegExp(`^${LOCALE_TAG}$`).test(stem)) {
+        return '';
+    }
+    return `${stem}_`;
 }
 
 /**
@@ -185,15 +212,20 @@ export async function updateArbFiles(
         let currentContent = "";
         try {
             currentContent = await fs.readFile(arbPath, "utf-8");
-        } catch (e) {
-            // File might not exist yet, we'll create it
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                throw error;
+            }
         }
 
         // An existing key is updated in place; a new key is appended at the end.
-        const data: Record<string, unknown> = currentContent ? JSON.parse(currentContent) : {};
-        data[key] = value;
+        const parsedData: unknown = currentContent.trim() ? JSON.parse(currentContent) : {};
+        if (!isPlainObject(parsedData)) {
+            throw new Error('ARB document must contain a JSON object');
+        }
+        parsedData[key] = value;
 
-        await atomicWrite(arbPath, stringifyArb(data, detectArbFormat(currentContent)), backup);
+        await atomicWrite(arbPath, stringifyArb(parsedData, detectArbFormat(currentContent)), backup);
     } catch (error) {
         throw new Error(`Failed to update ARB file at ${arbPath}: ${error}`);
     }

@@ -71,7 +71,9 @@ export class ConfigurationManager {
 
         // resolveProjectRoot reports why discovery failed.
         const projectRoot = this.resolveProjectRoot(config);
-        if (!projectRoot) return null;
+        if (!projectRoot) {
+            return null;
+        }
 
         // Handle packageName logic
         let packageName = config.get<string>('packageName') ?? '';
@@ -122,14 +124,18 @@ export class ConfigurationManager {
 
         const configured = (config.get<string>('projectRoot') ?? '').trim();
         if (configured) {
-            const root = path.isAbsolute(configured)
-                ? configured
-                : path.join(workspaceFolders[0].uri.fsPath, configured);
+            const attemptedRoots = path.isAbsolute(configured)
+                ? [configured]
+                : workspaceFolders.map(folder => path.join(folder.uri.fsPath, configured));
+            const root = attemptedRoots.find(candidate =>
+                fs.existsSync(path.join(candidate, 'pubspec.yaml'))
+            );
 
-            if (!fs.existsSync(path.join(root, 'pubspec.yaml'))) {
+            if (!root) {
                 if (!silent) {
                     vscode.window.showErrorMessage(
-                        `"generateL10n.projectRoot" points to ${root}, which contains no pubspec.yaml.`
+                        `"generateL10n.projectRoot" points to ${attemptedRoots[0]}, which contains no pubspec.yaml. ` +
+                        `Tried: ${attemptedRoots.join(', ')}.`
                     );
                 }
                 return null;
@@ -187,8 +193,13 @@ export class ConfigurationManager {
                     continue;
                 }
 
-                for (const entry of entries) {
-                    if (!entry.isDirectory() || entry.name.startsWith('.') || SKIPPED_DIRS[entry.name]) continue;
+                for (const entry of entries
+                    .filter(entry =>
+                        entry.isDirectory() &&
+                        !entry.name.startsWith('.') &&
+                        !Object.prototype.hasOwnProperty.call(SKIPPED_DIRS, entry.name)
+                    )
+                    .sort((a, b) => a.name.localeCompare(b.name))) {
                     nextLevel.push(path.join(dir, entry.name));
                 }
             }

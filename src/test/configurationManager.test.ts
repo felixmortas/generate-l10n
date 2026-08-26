@@ -205,6 +205,63 @@ describe('ConfigurationManager', () => {
       // The workspace root itself must not be scanned when the setting is explicit.
       expect(fs.readdirSync).not.toHaveBeenCalled();
     });
+    it('should resolve a relative projectRoot setting against the first matching workspace folder', () => {
+      const mockConfig = settings({ projectRoot: 'client' });
+      openWorkspace('/docs', '/app');
+      mockFileSystem(['/app/client/pubspec.yaml']);
+
+      const root = ConfigurationManager.resolveProjectRoot(
+        mockConfig as unknown as vscode.WorkspaceConfiguration
+      );
+
+      expect(root).toBe(path.join('/app', 'client'));
+      expect(fs.readdirSync).not.toHaveBeenCalled();
+    });
+
+    it('should list every attempted workspace folder when a relative projectRoot is missing', () => {
+      const mockConfig = settings({ projectRoot: 'client' });
+      openWorkspace('/docs', '/app');
+      mockFileSystem([]);
+
+      const root = ConfigurationManager.resolveProjectRoot(
+        mockConfig as unknown as vscode.WorkspaceConfiguration
+      );
+
+      expect(root).toBeNull();
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+        expect.stringContaining('Tried: /docs/client, /app/client.')
+      );
+    });
+
+    it('should sort discovery candidates regardless of filesystem entry order', () => {
+      const mockConfig = settings({});
+      openWorkspace('/repo');
+      mockFileSystem(
+        ['/repo/alpha/pubspec.yaml', '/repo/zeta/pubspec.yaml'],
+        { '/repo': ['zeta', 'alpha'] }
+      );
+
+      const root = ConfigurationManager.resolveProjectRoot(
+        mockConfig as unknown as vscode.WorkspaceConfiguration
+      );
+
+      expect(root).toBe(path.join('/repo', 'alpha'));
+    });
+
+    it('should not skip a project in a directory named after an Object prototype property', () => {
+      const mockConfig = settings({});
+      openWorkspace('/repo');
+      mockFileSystem(
+        ['/repo/constructor/pubspec.yaml'],
+        { '/repo': ['constructor'] }
+      );
+
+      const root = ConfigurationManager.resolveProjectRoot(
+        mockConfig as unknown as vscode.WorkspaceConfiguration
+      );
+
+      expect(root).toBe(path.join('/repo', 'constructor'));
+    });
 
     it('should reject a projectRoot setting without pubspec.yaml', () => {
       const mockConfig = settings({ projectRoot: '/elsewhere' });
