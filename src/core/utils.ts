@@ -75,14 +75,18 @@ export function isValidFlutterString(text: string): boolean {
 
 /**
  * Scans the l10n folder to extract available language tags.
- * It looks for files matching the pattern 'app_xx.arb'.
+ * It looks for files matching the pattern 'app_<locale>.arb', where <locale>
+ * is a Flutter/BCP-47 locale stem: language, optional script, optional region.
  * @param arbsFolder Path to the folder containing .arb files.
- * @returns A list of language tags like ["en", "fr", "es"].
+ * @returns A list of language tags like ["en", "fr_CA", "zh_Hant_TW", "es_419"].
  */
 export async function getAvailableLangs(arbsFolder: string): Promise<string[]> {
     try {
         const files = await fs.readdir(arbsFolder);
-        const langPattern = /^app_([a-z]{2,3}(_[A-Z]{2,4})?)\.arb$/;
+        // language (2-3 letters) + optional 4-letter script + optional region
+        // (2 letters or 3 digits), matching the locales `flutter gen-l10n` accepts:
+        // app_en.arb, app_fr_CA.arb, app_sr_Cyrl.arb, app_zh_Hant_TW.arb, app_es_419.arb
+        const langPattern = /^app_([a-z]{2,3}(?:_[A-Za-z]{4})?(?:_(?:[A-Za-z]{2}|\d{3}))?)\.arb$/;
         
         const langs = files
             .map(file => file.match(langPattern))

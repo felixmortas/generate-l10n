@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'fs/promises';
+import type { Dirent } from 'fs';
 import path from 'path';
 import * as vscode from 'vscode'; // Sera mocké par ton setup.ts
 import { 
@@ -83,6 +84,37 @@ describe('utils.ts unit tests', () => {
 
             const langs = await getAvailableLangs('/mock');
             expect(langs).toEqual(['en', 'fr_CA']);
+        });
+
+        it('should extract script and region language tags (e.g. zh_Hant_TW, es_419)', async () => {
+            const mockFiles = [
+                'app_en.arb',
+                'app_fr_CA.arb',
+                'app_zh_Hant_TW.arb',
+                'app_zh_Hans_CN.arb',
+                'app_sr_Cyrl.arb',
+                'app_es_419.arb',
+                'other.txt',
+            ];
+            vi.mocked(fs.readdir).mockResolvedValue(mockFiles as unknown as Dirent[]);
+
+            const langs = await getAvailableLangs('/mock');
+            expect(langs).toEqual([
+                'en',
+                'fr_CA',
+                'zh_Hant_TW',
+                'zh_Hans_CN',
+                'sr_Cyrl',
+                'es_419',
+            ]);
+        });
+
+        it('should ignore files that are not ARB locale files', async () => {
+            const mockFiles = ['app_config.arb', 'app.arb', 'messages_en.arb', 'app_en.arb'];
+            vi.mocked(fs.readdir).mockResolvedValue(mockFiles as unknown as Dirent[]);
+
+            const langs = await getAvailableLangs('/mock');
+            expect(langs).toEqual(['en']);
         });
     });
 
