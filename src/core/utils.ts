@@ -40,21 +40,63 @@ export async function atomicWrite(filePath: string, content: string, backup: boo
 }
 
 /**
+ * Formatting of an existing ARB document, so that rewriting it produces a
+ * minimal diff instead of reformatting the whole file.
+ */
+export interface ArbFormat {
+    /** Indentation width in spaces (2 when it cannot be detected). */
+    indent: number;
+    /** Whether the document ended with a newline. */
+    trailingNewline: boolean;
+}
+
+/**
+ * Detects the indentation and trailing newline of an existing ARB document.
+ * New/empty documents default to 2 spaces and a trailing newline.
+ */
+export function detectArbFormat(content: string): ArbFormat {
+    if (!content) return { indent: 2, trailingNewline: true };
+
+    // Indentation of the first top-level entry, e.g. '{\n    "key": ...'
+    const firstEntry = content.match(/^\s*\{[^\n]*\n([ \t]*)\S/);
+    const rawIndent = firstEntry?.[1] ?? '';
+    const indent = rawIndent.includes('\t') ? 4 : (rawIndent.length || 2);
+
+    return { indent, trailingNewline: content.endsWith('\n') };
+}
+
+/**
+ * Serializes ARB data while keeping the formatting of the original document.
+ * Key order is the insertion order of `data`, so callers control placement.
+ */
+export function stringifyArb(data: Record<string, unknown>, format: ArbFormat): string {
+    const json = JSON.stringify(data, null, format.indent);
+    return format.trailingNewline ? `${json}\n` : json;
+}
+
+/**
  * Merges two JSON strings by:
  * - Parsing both into objects.
- * - Combining them with preference for keys in `existingJson`.
- * - Returns a pretty-printed merged JSON string.
+ * - Keeping every existing entry with its original value AND its original
+ *   position; entries only present in `newJson` are appended at the end.
+ * - Returns the merged document with the indentation and trailing newline of
+ *   `existingJson`.
  *
  * If parsing fails, returns `existingJson` unchanged.
  */
 export function mergeJsonStrings(existingJson: string, newJson: string): string {
     try {
         console.debug('[DEBUG] Merging JSON files...');
-        const existingData = existingJson ? JSON.parse(existingJson) : {};
-        const newData = newJson ? JSON.parse(newJson) : {};
-        // Preserve original keys by spreading newData first, then existingData
-        const merged = { ...newData, ...existingData };
-        return JSON.stringify(merged, null, 2);
+        const existingData: Record<string, unknown> = existingJson ? JSON.parse(existingJson) : {};
+        const newData: Record<string, unknown> = newJson ? JSON.parse(newJson) : {};
+
+        // Existing entries win and keep their position; new keys are appended.
+        const merged: Record<string, unknown> = { ...existingData };
+        for (const [key, value] of Object.entries(newData)) {
+            if (!(key in merged)) merged[key] = value;
+        }
+
+        return stringifyArb(merged, detectArbFormat(existingJson));
     } catch (e) {
         console.error('[ERROR] JSON merge failed :', e);
         return existingJson;
@@ -74,20 +116,39 @@ export function isValidFlutterString(text: string): boolean {
 }
 
 /**
+ * A Flutter/BCP-47 locale stem as used in ARB filenames: language (2-3
+ * letters) + optional 4-letter script + optional region (2 letters or 3
+ * digits). Matches the locales `flutter gen-l10n` accepts, e.g. 'en',
+ * 'fr_CA', 'sr_Cyrl', 'zh_Hant_TW', 'es_419'.
+ */
+const LOCALE_TAG = String.raw`[a-z]{2,3}(?:_[A-Za-z]{4})?(?:_(?:[A-Za-z]{2}|\d{3}))?`;
+
+/** Default ARB filename prefix, matching Flutter's default template 'app_en.arb'. */
+export const DEFAULT_ARB_PREFIX = 'app_';
+
+/**
+ * Derives the ARB filename prefix from the `template-arb-file` of `l10n.yaml`.
+ * 'app_en.arb' -> 'app_', 'intl_zh_Hant_TW.arb' -> 'intl_', 'strings.arb' -> 'strings_'.
+ */
+export function arbFilePrefix(templateArbFile: string): string {
+    const stem = path.basename(templateArbFile, '.arb');
+    const withoutLocale = stem.match(new RegExp(`^(.+)_${LOCALE_TAG}$`));
+    return `${withoutLocale?.[1] ?? stem}_`;
+}
+
+/**
  * Scans the l10n folder to extract available language tags.
- * It looks for files matching the pattern 'app_<locale>.arb', where <locale>
- * is a Flutter/BCP-47 locale stem: language, optional script, optional region.
+ * It looks for files matching '<prefix><locale>.arb'.
  * @param arbsFolder Path to the folder containing .arb files.
+ * @param prefix ARB filename prefix, as derived from `template-arb-file`.
  * @returns A list of language tags like ["en", "fr_CA", "zh_Hant_TW", "es_419"].
  */
-export async function getAvailableLangs(arbsFolder: string): Promise<string[]> {
+export async function getAvailableLangs(arbsFolder: string, prefix: string = DEFAULT_ARB_PREFIX): Promise<string[]> {
     try {
         const files = await fs.readdir(arbsFolder);
-        // language (2-3 letters) + optional 4-letter script + optional region
-        // (2 letters or 3 digits), matching the locales `flutter gen-l10n` accepts:
-        // app_en.arb, app_fr_CA.arb, app_sr_Cyrl.arb, app_zh_Hant_TW.arb, app_es_419.arb
-        const langPattern = /^app_([a-z]{2,3}(?:_[A-Za-z]{4})?(?:_(?:[A-Za-z]{2}|\d{3}))?)\.arb$/;
-        
+        const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const langPattern = new RegExp(`^${escapedPrefix}(${LOCALE_TAG})\\.arb$`);
+
         const langs = files
             .map(file => file.match(langPattern))
             .filter((match): match is RegExpMatchArray => match !== null)
@@ -105,6 +166,8 @@ export async function getAvailableLangs(arbsFolder: string): Promise<string[]> {
 
 /**
  * Updates an ARB file by adding or updating a key-value pair.
+ * Existing entries keep their original position, so adding one key produces a
+ * one-line diff instead of reordering the whole document.
  * Uses atomicWrite to ensure file integrity.
  */
 export async function updateArbFiles(
@@ -114,25 +177,18 @@ export async function updateArbFiles(
     backup: boolean = false
 ): Promise<void> {
     try {
-        let currentContent = "{}";
+        let currentContent = "";
         try {
             currentContent = await fs.readFile(arbPath, "utf-8");
         } catch (e) {
             // File might not exist yet, we'll create it
         }
 
-        const data = JSON.parse(currentContent);
+        // An existing key is updated in place; a new key is appended at the end.
+        const data: Record<string, unknown> = currentContent ? JSON.parse(currentContent) : {};
         data[key] = value;
-        
-        // Sorting keys alphabetically is a common best practice for ARB files
-        const sortedData = Object.keys(data)
-            .sort()
-            .reduce((acc: any, k) => {
-                acc[k] = data[k];
-                return acc;
-            }, {});
 
-        await atomicWrite(arbPath, JSON.stringify(sortedData, null, 2), backup);
+        await atomicWrite(arbPath, stringifyArb(data, detectArbFormat(currentContent)), backup);
     } catch (error) {
         throw new Error(`Failed to update ARB file at ${arbPath}: ${error}`);
     }
@@ -158,10 +214,11 @@ export async function updateAllArbFiles(
     arbsFolder: string,
     key: string,
     translations: Record<string, string>,
-    backup: boolean
+    backup: boolean,
+    prefix: string = DEFAULT_ARB_PREFIX
 ): Promise<void> {
     for (const [lang, value] of Object.entries(translations)) {
-        const arbPath = path.join(arbsFolder, `app_${lang}.arb`);
+        const arbPath = path.join(arbsFolder, `${prefix}${lang}.arb`);
         await updateArbFiles(arbPath, key, value, backup);
     }
 }
@@ -186,20 +243,53 @@ export async function runWithProgress<T>(
 }
 
 /**
- * Executes the 'flutter gen-l10n' command.
+ * Executes 'flutter gen-l10n' in `cwd` (the Flutter project root) and waits
+ * for the process to exit.
  * Unified version used across the extension.
+ *
+ * @param cwd Directory to run the command in. Defaults to the shell's own
+ *            working directory when omitted.
+ * @throws If the command exits with a non-zero status or never starts.
  */
-export async function executeGenL10n(): Promise<void> {
-    const terminalName = 'Flutter L10n';
-    let terminal = vscode.window.terminals.find(t => t.name === terminalName);
-    
-    if (!terminal) {
-        terminal = vscode.window.createTerminal(terminalName);
-    }
+export async function executeGenL10n(cwd?: string): Promise<void> {
+    const task = new vscode.Task(
+        { type: 'flutter', task: 'gen-l10n' },
+        vscode.TaskScope.Workspace,
+        'gen-l10n',
+        'Flutter L10n',
+        new vscode.ShellExecution('flutter gen-l10n', cwd ? { cwd } : undefined)
+    );
+    task.presentationOptions = {
+        reveal: vscode.TaskRevealKind.Always,
+        panel: vscode.TaskPanelKind.Dedicated,
+        clear: true
+    };
 
-    terminal.show();
-    terminal.sendText('flutter gen-l10n');
-    
-    // Wait for the command to trigger and provide visual feedback time
-    return new Promise(resolve => setTimeout(resolve, 2000));
+    const execution = await vscode.tasks.executeTask(task);
+
+    // `onDidEndTaskProcess` carries the exit code; `onDidEndTask` is the
+    // fallback for a task that ends without ever starting a process.
+    const exitCode = await new Promise<number | undefined>(resolve => {
+        const subscriptions: vscode.Disposable[] = [];
+        const settle = (code: number | undefined) => {
+            subscriptions.forEach(subscription => subscription.dispose());
+            resolve(code);
+        };
+
+        subscriptions.push(
+            vscode.tasks.onDidEndTaskProcess(event => {
+                if (event.execution === execution) settle(event.exitCode);
+            }),
+            vscode.tasks.onDidEndTask(event => {
+                if (event.execution === execution) settle(undefined);
+            })
+        );
+    });
+
+    if (exitCode !== 0) {
+        throw new Error(
+            `flutter gen-l10n failed${exitCode === undefined ? '' : ` with exit code ${exitCode}`}. ` +
+            'Check the "Flutter L10n" task output.'
+        );
+    }
 }

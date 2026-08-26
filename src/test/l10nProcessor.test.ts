@@ -32,7 +32,9 @@ describe("L10nProcessor - Intégration", () => {
     const processorOptions: L10nProcessorOptions = {
       provider: "mistral",
       model: "mistral-small-latest",
+      projectRoot: tempDir,
       arbsFolder: l10nDir,
+      arbFilePrefix: "app_",
       files: [dartPath],
       apiKey: "fake-key",
       packageName: "my_app",

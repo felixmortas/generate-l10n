@@ -36,10 +36,10 @@ export class L10nProcessor {
    */
   public async localizeFiles(): Promise<void> {
     // Destructuring clean configuration values
-    const { arbsFolder, files, backup, packageName } = this.opts;
+    const { arbsFolder, files, backup, packageName, arbFilePrefix } = this.opts;
 
     // Get all ARB languages available
-    const langs = await getAvailableLangs(arbsFolder);
+    const langs = await getAvailableLangs(arbsFolder, arbFilePrefix);
     console.debug(`[DEBUG] Detected languages in ${arbsFolder}: ${langs}`);
 
     // Detect the source language by analyzing a Flutter file
@@ -49,7 +49,7 @@ export class L10nProcessor {
     console.info(`[INFO] Language detected: ${detectedLangTag}`);
 
     // Prepare target ARB file for the detected language
-    const targetArbPath = path.join(arbsFolder, `app_${detectedLangTag}.arb`);
+    const targetArbPath = path.join(arbsFolder, `${arbFilePrefix}${detectedLangTag}.arb`);
 
     let fullArbLines: Record<string, any> = {};
 
@@ -106,7 +106,7 @@ export class L10nProcessor {
         lang
       );
 
-      const arbFile = path.join(arbsFolder, `app_${lang}.arb`);
+      const arbFile = path.join(arbsFolder, `${arbFilePrefix}${lang}.arb`);
       const arbContent = await readFileContent(arbFile);
       
       // Safely merge and write translation
@@ -122,7 +122,7 @@ export class L10nProcessor {
    * @returns The replacement string (e.g., AppLocalizations.of(context)!.hello)
    */
   public async localizeSelectedText(selectedText: string): Promise<string> {
-    const { arbsFolder } = this.opts;
+    const { arbsFolder, arbFilePrefix } = this.opts;
 
     // 0. Validation : The text must be enclosed in quotation marks (business rule).
     if (!isValidFlutterString(selectedText)) {
@@ -133,14 +133,14 @@ export class L10nProcessor {
     const cleanText = selectedText.replace(/^["']|["']$/g, "");
 
     // 1. Retrieve available languages from .arb files
-    const langs = await getAvailableLangs(arbsFolder);
+    const langs = await getAvailableLangs(arbsFolder, arbFilePrefix);
 
     // 2. DDetect the language of the selected text
     const langResponse = await this.llm.detectTextLanguage(cleanText, langs);
     const sourceLang = langResponse.lang_tag;
 
     // 3. Read the content of the source language ARB file
-    const sourceArbPath = path.join(arbsFolder, `app_${sourceLang}.arb`);
+    const sourceArbPath = path.join(arbsFolder, `${arbFilePrefix}${sourceLang}.arb`);
     const sourceArbContent = await readFileContent(sourceArbPath);
 
     // 4. Search for existing key or generate translations via LLM
@@ -151,7 +151,7 @@ export class L10nProcessor {
       for (const lang of langs) {
         const translation = l10nData[lang];
         if (translation) {
-          const arbPath = path.join(arbsFolder, `app_${lang}.arb`);
+          const arbPath = path.join(arbsFolder, `${arbFilePrefix}${lang}.arb`);
           await updateArbFiles(arbPath, l10nData.key, translation);
         }
       }
