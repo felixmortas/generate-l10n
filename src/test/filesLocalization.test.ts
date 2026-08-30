@@ -63,6 +63,7 @@ describe('FilesLocalizationCommand', () => {
       provider: 'mistral',
       model: 'large',
       apiKey: 'fake-key',
+      projectRoot: '/path/to/project',
       // ... autres propriétés nécessaires
     } as any);
 
@@ -81,7 +82,7 @@ describe('FilesLocalizationCommand', () => {
     expect(mockLocalizeFiles).toHaveBeenCalled();
     
     // Vérifie que la commande Flutter gen-l10n a été lancée
-    expect(utils.executeGenL10n).toHaveBeenCalled();
+    expect(utils.executeGenL10n).toHaveBeenCalledWith('/path/to/project');
     
     // Vérifie que l'UI a été rafraîchie
     expect(mockTreeDataProvider.refresh).toHaveBeenCalled();

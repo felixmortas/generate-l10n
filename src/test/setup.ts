@@ -43,12 +43,44 @@ vi.mock("vscode", () => {
       activeTextEditor: undefined,
     },
 
+    // Mocking the tasks namespace ('flutter gen-l10n' runs as a shell task)
+    tasks: {
+      executeTask: vi.fn().mockResolvedValue({ task: {} }),
+      onDidEndTaskProcess: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+      onDidEndTask: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+    },
+
     // Mocking Enums and Constants
     ConfigurationTarget: {
       Global: 1,
       Workspace: 2,
       WorkspaceFolder: 3,
     },
+    TaskScope: {
+      Global: 1,
+      Workspace: 2,
+    },
+    TaskRevealKind: {
+      Always: 1,
+      Silent: 2,
+      Never: 3,
+    },
+    TaskPanelKind: {
+      Shared: 1,
+      Dedicated: 2,
+      New: 3,
+    },
+
+    // Mocking Classes used to build tasks
+    Task: vi.fn().mockImplementation((definition, scope, name, source, execution) => ({
+      definition,
+      scope,
+      name,
+      source,
+      execution,
+      presentationOptions: {},
+    })),
+    ShellExecution: vi.fn().mockImplementation((commandLine, options) => ({ commandLine, options })),
     
     // Mocking Classes used for ranges/locations
     Range: vi.fn().mockImplementation((startLine, startChar, endLine, endChar) => ({

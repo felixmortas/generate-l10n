@@ -9,7 +9,10 @@ import {
     mergeJsonStrings, 
     updateArbFiles,
     atomicWrite,
-    readFileContent
+    readFileContent,
+    arbFilePrefix,
+    detectArbFormat,
+    executeGenL10n
 } from '../core/utils';
 
 // Mocking fs/promises
@@ -116,6 +119,27 @@ describe('utils.ts unit tests', () => {
             const langs = await getAvailableLangs('/mock');
             expect(langs).toEqual(['en']);
         });
+
+        it('should honor a non-default ARB filename prefix', async () => {
+            const mockFiles = ['intl_en.arb', 'intl_zh_Hant_TW.arb', 'app_fr.arb'];
+            vi.mocked(fs.readdir).mockResolvedValue(mockFiles as unknown as Dirent[]);
+
+            const langs = await getAvailableLangs('/mock', 'intl_');
+            expect(langs).toEqual(['en', 'zh_Hant_TW']);
+        });
+        it('should scan bare locale filenames with an empty prefix', async () => {
+            const mockFiles = [
+                'en.arb',
+                'fr.arb',
+                'zh_Hant_TW.arb',
+                'notes.txt',
+                'app_config.arb',
+            ];
+            vi.mocked(fs.readdir).mockResolvedValue(mockFiles as unknown as Dirent[]);
+
+            const langs = await getAvailableLangs('/mock', '');
+            expect(langs).toEqual(['en', 'fr', 'zh_Hant_TW']);
+        });
     });
 
     /**
@@ -130,23 +154,264 @@ describe('utils.ts unit tests', () => {
             expect(result.key1).toBe("old"); // Priorité à l'existant
             expect(result.key2).toBe("fresh");
         });
+
+        it('should keep existing keys in place and append new ones', () => {
+            const existing = '{\n  "zebra": "z",\n  "@zebra": {},\n  "apple": "a"\n}\n';
+            const merged = mergeJsonStrings(existing, '{"banana": "b"}');
+
+            expect(Object.keys(JSON.parse(merged))).toEqual(['zebra', '@zebra', 'apple', 'banana']);
+        });
+
+        it('should preserve indentation and the trailing newline', () => {
+            const existing = '{\n    "a": "1"\n}\n';
+            const merged = mergeJsonStrings(existing, '{"b": "2"}');
+
+            expect(merged).toBe('{\n    "a": "1",\n    "b": "2"\n}\n');
+        });
+
+        it('should not add a trailing newline when the original had none', () => {
+            const merged = mergeJsonStrings('{\n  "a": "1"\n}', '{"b": "2"}');
+
+            expect(merged).toBe('{\n  "a": "1",\n  "b": "2"\n}');
+        });
+        it('should preserve tab indentation', () => {
+            const existing = '{\n\t"a": "1"\n}\n';
+            const merged = mergeJsonStrings(existing, '{"b": "2"}');
+
+            expect(merged).toBe('{\n\t"a": "1",\n\t"b": "2"\n}\n');
+        });
+
+        it('should preserve CRLF line endings', () => {
+            const existing = '{\r\n  "a": "1"\r\n}\r\n';
+            const merged = mergeJsonStrings(existing, '{"b": "2"}');
+
+            expect(merged).toBe('{\r\n  "a": "1",\r\n  "b": "2"\r\n}\r\n');
+        });
+        it.each(['[]', 'null', '1', '"text"'])(
+            'should leave a non-object existing document unchanged: %s',
+            (existing) => {
+                expect(mergeJsonStrings(existing, '{"newKey": "value"}')).toBe(existing);
+            }
+        );
+
+        it('should retain ARB keys that shadow Object.prototype properties', () => {
+            const merged = JSON.parse(
+                mergeJsonStrings('{}', '{"toString":"value","constructor":"ctor","valueOf":"fn"}')
+            );
+
+            expect(merged.toString).toBe('value');
+            expect(merged.constructor).toBe('ctor');
+            expect(merged.valueOf).toBe('fn');
+        });
+    });
+    describe('detectArbFormat', () => {
+        it('should ignore nested indentation when the first entry shares the opening line', () => {
+            const format = detectArbFormat(
+                '{"outer": {\n        "inner": 1\n    },\n    "second": 2}\n'
+            );
+
+            expect(format.indent).toBe('  ');
+        });
+
+        it('should fall back when a blank line follows the opening brace', () => {
+            const format = detectArbFormat('{\n\n    "key": "value"\n}\n');
+
+            expect(format.indent).toBe('  ');
+        });
+    });
+
+    describe('arbFilePrefix', () => {
+        it('should derive the prefix from the template ARB file', () => {
+            expect(arbFilePrefix('app_en.arb')).toBe('app_');
+            expect(arbFilePrefix('intl_zh_Hant_TW.arb')).toBe('intl_');
+            expect(arbFilePrefix('my_app_es_419.arb')).toBe('my_app_');
+            expect(arbFilePrefix('strings.arb')).toBe('strings_');
+        });
+        it('should use an empty prefix when the template stem is a bare locale', () => {
+            expect(arbFilePrefix('en.arb')).toBe('');
+            expect(arbFilePrefix('fr.arb')).toBe('');
+            expect(arbFilePrefix('zh_Hant_TW.arb')).toBe('');
+        });
     });
 
     /**
      * @group Integration_Logic
      */
     describe('updateArbFiles', () => {
-        it('should add a key, sort alphabetically, and write atomically', async () => {
-            vi.mocked(fs.readFile).mockResolvedValue('{"z": 1, "a": 2}');
+        it('should add a key without reordering existing entries', async () => {
+            vi.mocked(fs.readFile).mockResolvedValue('{\n  "z": "1",\n  "a": "2"\n}\n');
             
             await updateArbFiles('app_en.arb', 'm', '3');
 
             const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-            const parsed = JSON.parse(writtenContent);
-            
-            // Vérification de l'ordre alphabétique des clés
-            expect(Object.keys(parsed)).toEqual(['a', 'm', 'z']);
+
+            // A new key is appended; existing keys keep their original position.
+            expect(writtenContent).toBe('{\n  "z": "1",\n  "a": "2",\n  "m": "3"\n}\n');
             expect(vi.mocked(fs.rename)).toHaveBeenCalled();
+        });
+
+        it('should update an existing key in place', async () => {
+            vi.mocked(fs.readFile).mockResolvedValue('{\n  "z": "1",\n  "a": "2"\n}\n');
+
+            await updateArbFiles('app_en.arb', 'z', 'updated');
+
+            const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
+            expect(writtenContent).toBe('{\n  "z": "updated",\n  "a": "2"\n}\n');
+        });
+
+        it('should create a missing file with 2-space indentation', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(
+                Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+            );
+
+            await updateArbFiles('app_fr.arb', 'hello', 'Bonjour');
+
+            const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
+            expect(writtenContent).toBe('{\n  "hello": "Bonjour"\n}\n');
+        });
+        it.each(['[]', 'null', '1', '"text"'])(
+            'should reject a non-object existing document without writing: %s',
+            async (existing) => {
+                vi.mocked(fs.readFile).mockResolvedValue(existing);
+
+                await expect(updateArbFiles('app_en.arb', 'key', 'value'))
+                    .rejects.toThrow(/Failed to update ARB file/);
+
+                expect(fs.writeFile).not.toHaveBeenCalled();
+            }
+        );
+
+        it('should treat a whitespace-only document as empty', async () => {
+            vi.mocked(fs.readFile).mockResolvedValue(' \n\t\n');
+
+            await updateArbFiles('app_en.arb', 'hello', 'Bonjour');
+
+            const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
+            expect(writtenContent).toBe('{\n  "hello": "Bonjour"\n}\n');
+        });
+
+        it('should not write when reading an existing file fails for a reason other than ENOENT', async () => {
+            const readError = Object.assign(new Error('permission denied'), { code: 'EACCES' });
+            vi.mocked(fs.readFile).mockRejectedValue(readError);
+
+            await expect(updateArbFiles('app_en.arb', 'key', 'value'))
+                .rejects.toThrow(/Failed to update ARB file/);
+
+            expect(fs.writeFile).not.toHaveBeenCalled();
+        });
+    });
+
+    /**
+     * @group Process
+     */
+    describe('executeGenL10n', () => {
+        type ProcessEndListener = (event: vscode.TaskProcessEndEvent) => void;
+        type EndListener = (event: vscode.TaskEndEvent) => void;
+
+        const mockTaskEvents = () => {
+            let processListener: ProcessEndListener | undefined;
+            let endListener: EndListener | undefined;
+
+            vi.mocked(vscode.tasks.onDidEndTaskProcess).mockImplementation(listener => {
+                processListener = listener as unknown as ProcessEndListener;
+                return { dispose: vi.fn() } as unknown as vscode.Disposable;
+            });
+            vi.mocked(vscode.tasks.onDidEndTask).mockImplementation(listener => {
+                endListener = listener as unknown as EndListener;
+                return { dispose: vi.fn() } as unknown as vscode.Disposable;
+            });
+
+            return {
+                emitProcess: (execution: vscode.TaskExecution, exitCode: number | undefined) => {
+                    processListener?.({ execution, exitCode });
+                },
+                emitEnd: (execution: vscode.TaskExecution) => {
+                    endListener?.({ execution });
+                }
+            };
+        };
+
+        it('resolves when exit code 0 arrives after executeTask resolves', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                return execution;
+            });
+
+            const result = executeGenL10n('/repo/client');
+            await Promise.resolve();
+            emitProcess(execution, 0);
+
+            await expect(result).resolves.toBeUndefined();
+            expect(vscode.ShellExecution).toHaveBeenCalledWith('flutter gen-l10n', { cwd: '/repo/client' });
+        });
+
+        it('resolves when exit code 0 arrives before executeTask resolves', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                emitProcess(execution, 0);
+                await Promise.resolve();
+                return execution;
+            });
+
+            const result = executeGenL10n('/repo/client');
+
+            await expect(result).resolves.toBeUndefined();
+        });
+
+        it('rejects a buffered non-zero exit while executeTask is still pending', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            let releaseExecution!: (value: vscode.TaskExecution) => void;
+            const pendingExecution = new Promise<vscode.TaskExecution>(resolve => {
+                releaseExecution = resolve;
+            });
+
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                emitProcess(execution, 1);
+                return pendingExecution;
+            });
+
+            const result = executeGenL10n('/repo/client');
+            await Promise.resolve();
+            releaseExecution(execution);
+
+            await expect(result).rejects.toThrow(/exit code 1/);
+        });
+        it('rejects when gen-l10n exits with code 1', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                return execution;
+            });
+
+            const result = executeGenL10n('/repo/client');
+            await Promise.resolve();
+            emitProcess(execution, 1);
+
+            await expect(result).rejects.toThrow(/exit code 1/);
+        });
+
+        it('ignores an end event from a different execution', async () => {
+            const { emitProcess } = mockTaskEvents();
+            let execution!: vscode.TaskExecution;
+            vi.mocked(vscode.tasks.executeTask).mockImplementation(async task => {
+                execution = { task } as unknown as vscode.TaskExecution;
+                return execution;
+            });
+
+            const result = executeGenL10n('/repo/client');
+            await Promise.resolve();
+            const foreignExecution = { task: execution.task } as unknown as vscode.TaskExecution;
+            emitProcess(foreignExecution, 0);
+            emitProcess(execution, 1);
+
+            await expect(result).rejects.toThrow(/exit code 1/);
         });
     });
 });

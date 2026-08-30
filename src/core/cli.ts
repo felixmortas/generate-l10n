@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { LLMClient } from "./llmClient.js";
 import { LLMService } from "./llmService.js";
 import { L10nProcessor, L10nProcessorOptions } from "./l10nProcessor.js";
+import { DEFAULT_ARB_PREFIX } from "./utils.js";
 
 const program = new Command();
 program
@@ -14,6 +15,7 @@ program
   .requiredOption("--files <files...>", "Flutter files to process")
   .requiredOption("--package-name <name>", "Flutter project package name")
   .option("--api-key <key>", "API key for the LLM provider")
+  .option("--arb-file-prefix <prefix>", "ARB filename prefix", DEFAULT_ARB_PREFIX)
   .option("--backup", "Create backup files before modifying (.bak)", false);
 
 program.parse(process.argv);
@@ -50,7 +52,9 @@ async function main() {
   const processorOptions: L10nProcessorOptions = {
     provider: opts.provider,
     model: opts.model,
+    projectRoot: process.cwd(),
     arbsFolder: opts.arbsFolder,
+    arbFilePrefix: opts.arbFilePrefix,
     apiKey: apiKey,
     packageName: opts.packageName,
     backup: !!opts.backup,

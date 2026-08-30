@@ -35,7 +35,7 @@ export class TextLocalizationCommand {
         );
 
     try {
-      await this.executeWorkflow(editor, selection, selectedText, processor, executeGen);
+      await this.executeWorkflow(editor, selection, selectedText, processor, executeGen, extConfig.projectRoot);
       vscode.window.showInformationMessage("Text localized successfully!");
     } catch (err: any) {
       vscode.window.showErrorMessage(`L10n Error: ${err.message}`);
@@ -65,7 +65,8 @@ export class TextLocalizationCommand {
     selection: vscode.Selection, 
     text: string, 
     processor: L10nProcessor, 
-    runGen: boolean
+    runGen: boolean,
+    projectRoot: string
   ) {
     await runWithProgress("Localizing selection...", async (progress) => {
       const replacement = await processor.localizeSelectedText(text);
@@ -76,7 +77,7 @@ export class TextLocalizationCommand {
 
       if (runGen) {
         progress.report({ message: "Running flutter gen-l10n..." });
-        await executeGenL10n();
+        await executeGenL10n(projectRoot);
       }
     });
   }

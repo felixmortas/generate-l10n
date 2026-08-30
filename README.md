@@ -105,6 +105,7 @@ Whether you want to process **entire files** or just a **specific snippet of tex
 | `generateL10n.model` | string | `"mistral-large-latest"` | LLM model used for processing |
 | `generateL10n.backup` | boolean | `false` | Create backup files before modifying code |
 | `generateL10n.packageName` | string | `""` | Flutter project name (auto-detected) |
+| `generateL10n.projectRoot` | string | `""` | Path to the Flutter project root (the folder containing `pubspec.yaml`), absolute or relative to the workspace. Auto-detected if empty. |
 
 > **Note:** The API key is required for the extension to function.
 
@@ -115,6 +116,20 @@ Whether you want to process **entire files** or just a **specific snippet of tex
 The extension automatically detects your Flutter project name from `pubspec.yaml` when activated. If the `packageName` setting is empty, it will be populated automatically and stored in your workspace settings.
 
 You can manually re-detect the project name emptying it in the config tab.
+
+### Project layout
+
+The Flutter project does not have to sit at the workspace root. When `generateL10n.projectRoot` is empty, the extension searches every workspace folder (up to 3 levels deep) for a `pubspec.yaml`, preferring the project that also has an `l10n.yaml`. This covers monorepos such as `repo/client/pubspec.yaml` and multi-root workspaces. Set `generateL10n.projectRoot` when several Flutter projects exist and you want to pick one explicitly.
+The search stops at the first package found in each branch. If a workspace root is itself a package (for example, a melos workspace), set `generateL10n.projectRoot` explicitly.
+
+The ARB directory and filename prefix come from the project's `l10n.yaml`, so `arb-dir` and `template-arb-file` are honored:
+
+```yaml
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+```
+
+Without an `l10n.yaml`, Flutter's defaults (`lib/l10n` and `app_en.arb`) are used.
 
 ---
 

@@ -9,6 +9,7 @@ import os from "os";
 describe("L10nProcessor - Intégration", () => {
   let tempDir: string;
   let processor: L10nProcessor;
+  let processorOptions: L10nProcessorOptions;
   let llmService: LLMService;
 
   beforeEach(async () => {
@@ -29,10 +30,12 @@ describe("L10nProcessor - Intégration", () => {
     await fs.writeFile(dartPath, dartContent);
 
     // 4. Initialisation du processeur avec injection de dépendances
-    const processorOptions: L10nProcessorOptions = {
+    processorOptions = {
       provider: "mistral",
       model: "mistral-small-latest",
+      projectRoot: tempDir,
       arbsFolder: l10nDir,
+      arbFilePrefix: "app_",
       files: [dartPath],
       apiKey: "fake-key",
       packageName: "my_app",
@@ -109,6 +112,23 @@ describe("L10nProcessor - Intégration", () => {
 
     const enPath = path.join(tempDir, "lib", "l10n", "app_en.arb");
     const enContent = JSON.parse(await fs.readFile(enPath, "utf-8"));
+    expect(enContent.welcome).toBe("Welcome");
+  });
+  it("should process files with a non-default ARB filename prefix", async () => {
+    const l10nDir = path.join(tempDir, "lib", "l10n");
+    await fs.rename(path.join(l10nDir, "app_fr.arb"), path.join(l10nDir, "intl_fr.arb"));
+    await fs.rename(path.join(l10nDir, "app_en.arb"), path.join(l10nDir, "intl_en.arb"));
+
+    processor = new L10nProcessor(
+      { ...processorOptions, arbFilePrefix: "intl_" },
+      llmService
+    );
+
+    await processor.localizeFiles();
+
+    const frContent = JSON.parse(await fs.readFile(path.join(l10nDir, "intl_fr.arb"), "utf-8"));
+    const enContent = JSON.parse(await fs.readFile(path.join(l10nDir, "intl_en.arb"), "utf-8"));
+    expect(frContent.welcome).toBe("Bienvenue");
     expect(enContent.welcome).toBe("Welcome");
   });
 });

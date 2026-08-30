@@ -21,9 +21,9 @@ describe('TextLocalizationCommand', () => {
       provider: 'mistral',
       model: 'mistral-large',
       apiKey: 'fake-key',
+      projectRoot: '/path/to/project',
       mainArbFilePath: 'app_en.arb'
     } as any);
-
     // Mock de l'utilitaire de validation (doit retourner true par défaut)
     vi.spyOn(utils, 'isValidFlutterString').mockReturnValue(true);
     vi.spyOn(utils, 'runWithProgress').mockImplementation(async (title, task) => {
@@ -92,7 +92,7 @@ describe('TextLocalizationCommand', () => {
     // 4. Vérifications
     expect(localizeSpy).toHaveBeenCalledWith("'Hello'");
     expect(mockEdit).toHaveBeenCalled();
-    expect(utils.executeGenL10n).toHaveBeenCalled();
+    expect(utils.executeGenL10n).toHaveBeenCalledWith('/path/to/project');
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith("Text localized successfully!");
   });
 

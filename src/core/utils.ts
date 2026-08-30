@@ -40,27 +40,95 @@ export async function atomicWrite(filePath: string, content: string, backup: boo
 }
 
 /**
+ * Formatting of an existing ARB document, so that rewriting it produces a
+ * minimal diff instead of reformatting the whole file.
+ */
+export interface ArbFormat {
+    /** Literal indentation used by the document (2 spaces when undetectable). */
+    indent: string;
+    /** Whether the document ended with a newline. */
+    trailingNewline: boolean;
+    /** Line ending used by the document. */
+    eol: '\n' | '\r\n';
+}
+
+/**
+ * Detects the indentation, line ending, and trailing newline of an existing
+ * ARB document. New/empty documents default to 2 spaces, LF, and a trailing
+ * newline. If both line-ending styles occur, CRLF is used for the rewritten
+ * document.
+ */
+export function detectArbFormat(content: string): ArbFormat {
+    if (!content) {
+        return { indent: '  ', trailingNewline: true, eol: '\n' };
+    }
+
+    // Indentation of the first top-level entry, e.g. '{\n    "key": ...'
+    const firstEntry = content.match(/^\s*\{\r?\n([ \t]*)"/);
+    const rawIndent = firstEntry?.[1] ?? '';
+    const indent = rawIndent || '  ';
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
+
+    return { indent, trailingNewline: content.endsWith('\n'), eol };
+}
+
+/**
+ * Serializes ARB data while keeping the formatting of the original document.
+ * Key order is the insertion order of `data`, so callers control placement.
+ */
+export function stringifyArb(data: Record<string, unknown>, format: ArbFormat): string {
+    const json = JSON.stringify(data, null, format.indent);
+    const serialized = format.eol === '\r\n' ? json.replace(/\n/g, '\r\n') : json;
+    return format.trailingNewline ? `${serialized}${format.eol}` : serialized;
+}
+
+/**
  * Merges two JSON strings by:
  * - Parsing both into objects.
- * - Combining them with preference for keys in `existingJson`.
- * - Returns a pretty-printed merged JSON string.
+ * - Keeping every existing entry with its original value AND its original
+ *   position; entries only present in `newJson` are appended at the end.
+ * - Returns the merged document with the indentation and trailing newline of
+ *   `existingJson`.
  *
- * If parsing fails, returns `existingJson` unchanged.
+ * If parsing fails or either JSON value is not an object, returns
+ * `existingJson` unchanged.
  */
 export function mergeJsonStrings(existingJson: string, newJson: string): string {
     try {
         console.debug('[DEBUG] Merging JSON files...');
-        const existingData = existingJson ? JSON.parse(existingJson) : {};
-        const newData = newJson ? JSON.parse(newJson) : {};
-        // Preserve original keys by spreading newData first, then existingData
-        const merged = { ...newData, ...existingData };
-        return JSON.stringify(merged, null, 2);
+        const existingData: unknown = existingJson.trim() ? JSON.parse(existingJson) : {};
+        const newData: unknown = newJson.trim() ? JSON.parse(newJson) : {};
+
+        if (!isPlainObject(existingData) || !isPlainObject(newData)) {
+            return existingJson;
+        }
+
+        // Existing entries win and keep their position; new keys are appended.
+        const merged: Record<string, unknown> = { ...existingData };
+        for (const [key, value] of Object.entries(newData)) {
+            if (!Object.prototype.hasOwnProperty.call(merged, key)) {
+                merged[key] = value;
+            }
+        }
+
+        return stringifyArb(merged, detectArbFormat(existingJson));
     } catch (e) {
         console.error('[ERROR] JSON merge failed :', e);
         return existingJson;
     }
 }
 
+/**
+ * Returns whether a parsed JSON value is a plain object suitable for an ARB
+ * document.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
 /**
  * Checks if the selected text is a valid Flutter/Dart string.
  * It must be wrapped in single or double quotes.
@@ -74,20 +142,45 @@ export function isValidFlutterString(text: string): boolean {
 }
 
 /**
+ * A Flutter/BCP-47 locale stem as used in ARB filenames: language (2-3
+ * letters) + optional 4-letter script + optional region (2 letters or 3
+ * digits). Matches the locales `flutter gen-l10n` accepts, e.g. 'en',
+ * 'fr_CA', 'sr_Cyrl', 'zh_Hant_TW', 'es_419'.
+ */
+const LOCALE_TAG = String.raw`[a-z]{2,3}(?:_[A-Za-z]{4})?(?:_(?:[A-Za-z]{2}|\d{3}))?`;
+
+/** Default ARB filename prefix, matching Flutter's default template 'app_en.arb'. */
+export const DEFAULT_ARB_PREFIX = 'app_';
+
+/**
+ * Derives the ARB filename prefix from the `template-arb-file` of `l10n.yaml`.
+ * 'app_en.arb' -> 'app_', 'intl_zh_Hant_TW.arb' -> 'intl_', 'en.arb' -> ''.
+ */
+export function arbFilePrefix(templateArbFile: string): string {
+    const stem = path.basename(templateArbFile, '.arb');
+    const withoutLocale = stem.match(new RegExp(`^(.+)_${LOCALE_TAG}$`));
+    if (withoutLocale) {
+        return `${withoutLocale[1]}_`;
+    }
+    if (new RegExp(`^${LOCALE_TAG}$`).test(stem)) {
+        return '';
+    }
+    return `${stem}_`;
+}
+
+/**
  * Scans the l10n folder to extract available language tags.
- * It looks for files matching the pattern 'app_<locale>.arb', where <locale>
- * is a Flutter/BCP-47 locale stem: language, optional script, optional region.
+ * It looks for files matching '<prefix><locale>.arb'.
  * @param arbsFolder Path to the folder containing .arb files.
+ * @param prefix ARB filename prefix, as derived from `template-arb-file`.
  * @returns A list of language tags like ["en", "fr_CA", "zh_Hant_TW", "es_419"].
  */
-export async function getAvailableLangs(arbsFolder: string): Promise<string[]> {
+export async function getAvailableLangs(arbsFolder: string, prefix: string = DEFAULT_ARB_PREFIX): Promise<string[]> {
     try {
         const files = await fs.readdir(arbsFolder);
-        // language (2-3 letters) + optional 4-letter script + optional region
-        // (2 letters or 3 digits), matching the locales `flutter gen-l10n` accepts:
-        // app_en.arb, app_fr_CA.arb, app_sr_Cyrl.arb, app_zh_Hant_TW.arb, app_es_419.arb
-        const langPattern = /^app_([a-z]{2,3}(?:_[A-Za-z]{4})?(?:_(?:[A-Za-z]{2}|\d{3}))?)\.arb$/;
-        
+        const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const langPattern = new RegExp(`^${escapedPrefix}(${LOCALE_TAG})\\.arb$`);
+
         const langs = files
             .map(file => file.match(langPattern))
             .filter((match): match is RegExpMatchArray => match !== null)
@@ -105,6 +198,8 @@ export async function getAvailableLangs(arbsFolder: string): Promise<string[]> {
 
 /**
  * Updates an ARB file by adding or updating a key-value pair.
+ * Existing entries keep their original position, so adding one key produces a
+ * one-line diff instead of reordering the whole document.
  * Uses atomicWrite to ensure file integrity.
  */
 export async function updateArbFiles(
@@ -114,25 +209,23 @@ export async function updateArbFiles(
     backup: boolean = false
 ): Promise<void> {
     try {
-        let currentContent = "{}";
+        let currentContent = "";
         try {
             currentContent = await fs.readFile(arbPath, "utf-8");
-        } catch (e) {
-            // File might not exist yet, we'll create it
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                throw error;
+            }
         }
 
-        const data = JSON.parse(currentContent);
-        data[key] = value;
-        
-        // Sorting keys alphabetically is a common best practice for ARB files
-        const sortedData = Object.keys(data)
-            .sort()
-            .reduce((acc: any, k) => {
-                acc[k] = data[k];
-                return acc;
-            }, {});
+        // An existing key is updated in place; a new key is appended at the end.
+        const parsedData: unknown = currentContent.trim() ? JSON.parse(currentContent) : {};
+        if (!isPlainObject(parsedData)) {
+            throw new Error('ARB document must contain a JSON object');
+        }
+        parsedData[key] = value;
 
-        await atomicWrite(arbPath, JSON.stringify(sortedData, null, 2), backup);
+        await atomicWrite(arbPath, stringifyArb(parsedData, detectArbFormat(currentContent)), backup);
     } catch (error) {
         throw new Error(`Failed to update ARB file at ${arbPath}: ${error}`);
     }
@@ -158,10 +251,11 @@ export async function updateAllArbFiles(
     arbsFolder: string,
     key: string,
     translations: Record<string, string>,
-    backup: boolean
+    backup: boolean,
+    prefix: string = DEFAULT_ARB_PREFIX
 ): Promise<void> {
     for (const [lang, value] of Object.entries(translations)) {
-        const arbPath = path.join(arbsFolder, `app_${lang}.arb`);
+        const arbPath = path.join(arbsFolder, `${prefix}${lang}.arb`);
         await updateArbFiles(arbPath, key, value, backup);
     }
 }
@@ -186,20 +280,76 @@ export async function runWithProgress<T>(
 }
 
 /**
- * Executes the 'flutter gen-l10n' command.
+ * Executes 'flutter gen-l10n' in `cwd` (the Flutter project root) and waits
+ * for the process to exit.
  * Unified version used across the extension.
+ *
+ * @param cwd Directory to run the command in. Defaults to the shell's own
+ *            working directory when omitted.
+ * @throws If the command exits with a non-zero status or never starts.
  */
-export async function executeGenL10n(): Promise<void> {
-    const terminalName = 'Flutter L10n';
-    let terminal = vscode.window.terminals.find(t => t.name === terminalName);
-    
-    if (!terminal) {
-        terminal = vscode.window.createTerminal(terminalName);
-    }
+export async function executeGenL10n(cwd?: string): Promise<void> {
+    const task = new vscode.Task(
+        // 'shell' is a built-in task type, so no `contributes.taskDefinitions` is needed.
+        { type: 'shell' },
+        vscode.TaskScope.Workspace,
+        'gen-l10n',
+        'Flutter L10n',
+        new vscode.ShellExecution('flutter gen-l10n', cwd ? { cwd } : undefined)
+    );
+    task.presentationOptions = {
+        reveal: vscode.TaskRevealKind.Always,
+        panel: vscode.TaskPanelKind.Dedicated,
+        clear: true
+    };
 
-    terminal.show();
-    terminal.sendText('flutter gen-l10n');
-    
-    // Wait for the command to trigger and provide visual feedback time
-    return new Promise(resolve => setTimeout(resolve, 2000));
+    // Register listeners before starting the task so a fast process cannot
+    // finish before the completion events are observed.
+    const subscriptions: vscode.Disposable[] = [];
+    let resolveExitCode!: (exitCode: number | undefined) => void;
+    const exitCode = new Promise<number | undefined>(resolve => {
+        resolveExitCode = resolve;
+    });
+    let execution: vscode.TaskExecution | undefined;
+    const bufferedEvents: Array<{
+        execution: vscode.TaskExecution;
+        exitCode: number | undefined;
+    }> = [];
+    const handleTaskEnd = (
+        eventExecution: vscode.TaskExecution,
+        eventExitCode: number | undefined
+    ): void => {
+        if (execution === undefined) {
+            bufferedEvents.push({ execution: eventExecution, exitCode: eventExitCode });
+            return;
+        }
+
+        if (eventExecution === execution) {
+            resolveExitCode(eventExitCode);
+        }
+    };
+    subscriptions.push(
+        vscode.tasks.onDidEndTaskProcess(event => handleTaskEnd(event.execution, event.exitCode)),
+        vscode.tasks.onDidEndTask(event => handleTaskEnd(event.execution, undefined))
+    );
+
+    try {
+        execution = await vscode.tasks.executeTask(task);
+        for (const event of bufferedEvents) {
+            if (event.execution === execution) {
+                resolveExitCode(event.exitCode);
+                break;
+            }
+        }
+
+        const code = await exitCode;
+        if (code !== 0) {
+            throw new Error(
+                `flutter gen-l10n failed${code === undefined ? '' : ` with exit code ${code}`}. ` +
+                'Check the "Flutter L10n" task output.'
+            );
+        }
+    } finally {
+        subscriptions.forEach(subscription => subscription.dispose());
+    }
 }
