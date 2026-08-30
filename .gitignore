@@ -8,3 +8,4 @@ node_modules
 *.bak
 .tmp-*
 src/test/fixtures
+.DS_Store
