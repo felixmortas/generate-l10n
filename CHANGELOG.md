@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-08-30
+
+### Added
+- **Project Root Setting**: Added `generateL10n.projectRoot` setting to support nested Flutter projects and multi-root workspaces.
+- **Dynamic Configuration**: Added support for reading `arb-dir` and `template-arb-file` custom configurations directly from `l10n.yaml`.
+- **Locale Stem Support**: Added support for ARB files using script subtags (e.g., `zh_Hant_TW`) and UN M.49 numeric regions (e.g., `es_419`).
+
+### Fixed
+- **ARB Preservation**: Stopped full reformatting of ARB files on update; existing entry order, line endings (LF/CRLF), custom key indentation, and trailing newlines are now preserved.
+- **Execution Race Condition**: Fixed `flutter gen-l10n` process execution handling by awaiting completion explicitly and registering task completion listeners prior to task execution.
+- **Nested Tree Views**: Updated Tree View file discovery to properly scope to the detected project root instead of defaulting to workspace root.
+
+### Chore
+- Added `.DS_Store` to `.gitignore` and removed tracked `.DS_Store` files from the repository index.
+
 ## [1.2.0] - 2026-01-28
 
 ### Added
